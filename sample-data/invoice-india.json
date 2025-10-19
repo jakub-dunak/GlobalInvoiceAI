@@ -1,0 +1,36 @@
+{
+  "customer_name": "Tech Innovations India Pvt Ltd",
+  "customer_address": "456 MG Road, Bangalore, Karnataka 560001, India",
+  "invoice_number": "IN-INV-2024-001",
+  "invoice_date": "2024-01-25",
+  "due_date": "2024-02-25",
+  "currency": "INR",
+  "country": "IN",
+  "gst_number": "29AABCT1234F1Z5",
+  "line_items": [
+    {
+      "description": "Mobile App Development",
+      "quantity": 60,
+      "unit_price": 2500.00,
+      "total": 150000.00
+    },
+    {
+      "description": "UI/UX Design Services",
+      "quantity": 30,
+      "unit_price": 3000.00,
+      "total": 90000.00
+    },
+    {
+      "description": "Quality Assurance Testing",
+      "quantity": 20,
+      "unit_price": 2000.00,
+      "total": 40000.00
+    }
+  ],
+  "subtotal": 280000.00,
+  "tax_rate": 0.18,
+  "tax_amount": 50400.00,
+  "total_amount": 330400.00,
+  "payment_terms": "Net 30",
+  "notes": "GST included as per Indian tax regulations. All amounts in Indian Rupees."
+}

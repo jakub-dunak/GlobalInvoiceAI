@@ -1,0 +1,36 @@
+{
+  "customer_name": "British Tech Solutions Ltd",
+  "customer_address": "45 Oxford Street, London, W1D 1AS, United Kingdom",
+  "invoice_number": "GB-INV-2024-001",
+  "invoice_date": "2024-01-20",
+  "due_date": "2024-02-20",
+  "currency": "GBP",
+  "country": "UK",
+  "vat_number": "GB123456789",
+  "line_items": [
+    {
+      "description": "Cloud Infrastructure Consulting",
+      "quantity": 35,
+      "unit_price": 180.00,
+      "total": 6300.00
+    },
+    {
+      "description": "AWS Architecture Review",
+      "quantity": 15,
+      "unit_price": 200.00,
+      "total": 3000.00
+    },
+    {
+      "description": "DevOps Implementation",
+      "quantity": 25,
+      "unit_price": 160.00,
+      "total": 4000.00
+    }
+  ],
+  "subtotal": 13300.00,
+  "tax_rate": 0.20,
+  "tax_amount": 2660.00,
+  "total_amount": 15960.00,
+  "payment_terms": "Net 30",
+  "notes": "VAT included as per UK regulations. Thank you for your business."
+}

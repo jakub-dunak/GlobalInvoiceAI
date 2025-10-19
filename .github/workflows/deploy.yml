@@ -1,0 +1,344 @@
+name: Deploy GlobalInvoiceAI
+
+on:
+  # push:
+  #   branches:
+  #     - main
+  #     - develop
+  #   paths:
+  #     - 'cloudformation/**'
+  #     - 'agentcore/**'
+  #     - '.github/workflows/**'
+  # pull_request:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'cloudformation/**'
+  #     - 'agentcore/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  validate:
+    name: Validate CloudFormation Template
+    runs-on: ubuntu-latest
+    outputs:
+      template-valid: ${{ steps.validate.outputs.valid }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate CloudFormation template
+        id: validate
+        run: |
+          echo "Validating CloudFormation template..."
+          if aws cloudformation validate-template \
+            --template-body file://cloudformation/globalinvoiceai-stack.yaml \
+            --region ${{ env.AWS_REGION }}; then
+            echo "valid=true" >> $GITHUB_OUTPUT
+            echo "✅ CloudFormation template is valid"
+          else
+            echo "valid=false" >> $GITHUB_OUTPUT
+            echo "❌ CloudFormation template validation failed"
+            exit 1
+          fi
+
+  package-and-deploy:
+    name: Package and Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: validate
+    if: needs.validate.outputs.template-valid == 'true'
+    environment:
+      name: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create S3 bucket for deployment artifacts
+        run: |
+          BUCKET_NAME="globalinvoiceai-deployment-${{ github.run_id }}-${{ github.run_attempt }}"
+          echo "DEPLOYMENT_BUCKET=${BUCKET_NAME}" >> $GITHUB_ENV
+
+          if aws s3 mb s3://${BUCKET_NAME} --region ${{ env.AWS_REGION }}; then
+            echo "✅ Created deployment bucket: ${BUCKET_NAME}"
+          else
+            echo "❌ Failed to create deployment bucket"
+            exit 1
+          fi
+
+      - name: Package CloudFormation template
+        run: |
+          echo "📦 Packaging CloudFormation template..."
+          aws cloudformation package \
+            --template-file cloudformation/globalinvoiceai-stack.yaml \
+            --s3-bucket ${{ env.DEPLOYMENT_BUCKET }} \
+            --output-template-file packaged-template.yaml \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Determine stack name and parameters
+        id: stack-config
+        run: |
+          STACK_NAME="globalinvoiceai-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+          echo "stack-name=${STACK_NAME}" >> $GITHUB_OUTPUT
+
+          # Set environment-specific parameters
+          if [ "${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}" = "prod" ]; then
+            COGNITO_PREFIX="globalinvoiceai-prod"
+          else
+            COGNITO_PREFIX="globalinvoiceai-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+          fi
+          echo "cognito-prefix=${COGNITO_PREFIX}" >> $GITHUB_OUTPUT
+
+      - name: Deploy CloudFormation stack
+        run: |
+          echo "🚀 Deploying CloudFormation stack: ${{ steps.stack-config.outputs.stack-name }}"
+
+          # Deploy the stack
+          aws cloudformation deploy \
+            --template-file packaged-template.yaml \
+            --stack-name ${{ steps.stack-config.outputs.stack-name }} \
+            --parameter-overrides \
+              Environment=${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }} \
+              CognitoDomainPrefix=${{ steps.stack-config.outputs.cognito-prefix }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+            --region ${{ env.AWS_REGION }} \
+            --no-fail-on-empty-changeset
+
+      - name: Get stack outputs
+        id: stack-outputs
+        run: |
+          echo "📋 Getting stack outputs..."
+          STACK_NAME="${{ steps.stack-config.outputs.stack-name }}"
+
+          # Get stack outputs and save them as environment variables
+          aws cloudformation describe-stacks \
+            --stack-name ${STACK_NAME} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].Outputs' \
+            --output json > stack-outputs.json
+
+          # Extract key outputs
+          AMPLIFY_URL=$(jq -r '.[] | select(.OutputKey=="AmplifyAppUrl") | .OutputValue' stack-outputs.json)
+          API_GATEWAY_URL=$(jq -r '.[] | select(.OutputKey=="ApiGatewayUrl") | .OutputValue' stack-outputs.json)
+          INVOICE_BUCKET=$(jq -r '.[] | select(.OutputKey=="InvoiceUploadBucketName") | .OutputValue' stack-outputs.json)
+
+          echo "amplify-url=${AMPLIFY_URL}" >> $GITHUB_OUTPUT
+          echo "api-gateway-url=${API_GATEWAY_URL}" >> $GITHUB_OUTPUT
+          echo "invoice-bucket=${INVOICE_BUCKET}" >> $GITHUB_OUTPUT
+
+          echo "✅ Stack deployed successfully!"
+          echo "🎯 Amplify App URL: ${AMPLIFY_URL}"
+          echo "🔗 API Gateway URL: ${API_GATEWAY_URL}"
+          echo "📦 Invoice Upload Bucket: ${INVOICE_BUCKET}"
+
+      - name: Create deployment summary
+        run: |
+          cat > deployment-summary.md << 'EOF'
+          # 🚀 GlobalInvoiceAI Deployment Summary
+
+          **Environment:** ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+          **Branch:** ${{ github.ref_name }}
+          **Run ID:** ${{ github.run_id }}
+          **Timestamp:** $(date -u)
+
+          ## 📋 Stack Information
+          - **Stack Name:** ${{ steps.stack-config.outputs.stack-name }}
+          - **Region:** ${{ env.AWS_REGION }}
+
+          ## 🔗 Access URLs
+          - **Admin Dashboard:** ${{ steps.stack-outputs.outputs.amplify-url }}
+          - **API Gateway:** ${{ steps.stack-outputs.outputs.api-gateway-url }}
+
+          ## 📦 S3 Buckets
+          - **Invoice Upload:** ${{ steps.stack-outputs.outputs.invoice-bucket }}
+
+          ## 🧪 Testing
+          1. Upload sample invoices to the S3 bucket
+          2. Monitor processing in CloudWatch logs
+          3. Access admin dashboard for invoice management
+
+          ## 📞 Next Steps
+          - Create admin user in Cognito User Pool
+          - Test invoice processing with sample data
+          - Configure monitoring alerts if needed
+          EOF
+
+          echo "📝 Deployment summary created"
+
+      - name: Upload deployment summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-summary
+          path: deployment-summary.md
+
+      - name: Comment on PR (if applicable)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🚀 Deployment Preview
+
+              **Environment:** ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+
+              ### 📋 Stack Information
+              - Stack Name: ${{ steps.stack-config.outputs.stack-name }}
+              - Region: ${{ env.AWS_REGION }}
+
+              ### 🔗 Access URLs
+              - **Admin Dashboard:** ${{ steps.stack-outputs.outputs.amplify-url }}
+              - **API Gateway:** ${{ steps.stack-outputs.outputs.api-gateway-url }}
+
+              ### 📦 S3 Buckets
+              - **Invoice Upload:** ${{ steps.stack-outputs.outputs.invoice-bucket }}
+
+              > This is a deployment preview. The stack will be deployed when the PR is merged.`
+            })
+
+  build-agentcore:
+    name: Build and Deploy AgentCore Application
+    runs-on: ubuntu-latest
+    needs: package-and-deploy
+    if: needs.validate.outputs.template-valid == 'true'
+    environment:
+      name: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Amazon ECR
+        run: |
+          # Get ECR login token and login
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+          docker login --username AWS --password-stdin \
+          $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+
+      - name: Build and push AgentCore Docker image
+        run: |
+          STACK_NAME="globalinvoiceai-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+
+          # Get ECR repository URI from stack outputs
+          ECR_REPO=$(aws cloudformation describe-stacks \
+            --stack-name ${STACK_NAME} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`GlobalInvoiceAIAgentRepo`].OutputValue' \
+            --output text)
+
+          if [ -z "$ECR_REPO" ] || [ "$ECR_REPO" = "None" ]; then
+            echo "❌ ECR repository not found in stack outputs"
+            exit 1
+          fi
+
+          echo "🏗️ Building AgentCore Docker image..."
+          IMAGE_TAG="${ECR_REPO}:latest"
+
+          cd agentcore
+          docker build -t ${IMAGE_TAG} .
+          docker push ${IMAGE_TAG}
+
+          echo "✅ AgentCore image built and pushed: ${IMAGE_TAG}"
+
+      - name: Trigger AgentCore deployment
+        run: |
+          STACK_NAME="globalinvoiceai-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+
+          echo "🔄 Triggering AgentCore deployment via CloudFormation..."
+
+          # The AgentCoreDeployFunction in the CloudFormation template will handle the actual deployment
+          # We just need to wait for it to complete
+
+          # Check if AgentCoreDeployFunction exists and is running
+          FUNCTION_NAME="${STACK_NAME}-agentcore-deploy-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+
+          # Wait for the Custom Resource to complete (it runs during stack deployment)
+          echo "⏳ Waiting for AgentCore deployment to complete..."
+
+          # Check stack status
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name ${STACK_NAME} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].StackStatus' \
+            --output text)
+
+          if [ "$STACK_STATUS" = "CREATE_COMPLETE" ] || [ "$STACK_STATUS" = "UPDATE_COMPLETE" ]; then
+            echo "✅ AgentCore deployment completed successfully"
+          else
+            echo "⚠️ Stack status: ${STACK_STATUS}. AgentCore deployment may still be in progress."
+          fi
+
+  cleanup:
+    name: Cleanup Deployment Artifacts
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [package-and-deploy, build-agentcore]
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Clean up deployment bucket
+        run: |
+          # Clean up the temporary deployment bucket if it exists
+          if [ ! -z "${{ env.DEPLOYMENT_BUCKET }}" ]; then
+            echo "🧹 Cleaning up deployment bucket: ${{ env.DEPLOYMENT_BUCKET }}"
+            aws s3 rm s3://${{ env.DEPLOYMENT_BUCKET }} --recursive || true
+            aws s3 rb s3://${{ env.DEPLOYMENT_BUCKET }} || true
+          fi
+
+  notify:
+    name: Deployment Notification
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [package-and-deploy, build-agentcore, cleanup]
+    steps:
+      - name: Download deployment summary
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-summary
+
+      - name: Send notification
+        run: |
+          echo "📢 Deployment completed for ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }} environment"
+          echo "📋 Check deployment-summary.md for details"
