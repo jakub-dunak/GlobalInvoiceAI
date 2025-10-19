@@ -63,9 +63,10 @@ GlobalInvoiceAI is an autonomous AI agent for global invoice management and vali
 
 1. **AWS Account** with appropriate permissions
 2. **AWS CLI** configured with your credentials
-3. **Git** for cloning the repository
-4. **Node.js** (v16+) for the frontend
-5. **Python** (v3.11+) for Lambda functions
+3. **GitHub OIDC Provider** set up in AWS (see [DEPLOYMENT.md](docs/DEPLOYMENT.md))
+4. **Git** for cloning the repository
+5. **Node.js** (v16+) for the frontend
+6. **Python** (v3.11+) for Lambda functions
 
 ### 1. Clone and Setup
 
@@ -120,12 +121,11 @@ The deployment is fully automated using GitHub Actions. The workflow handles:
 
 ## 🤖 GitHub Actions Configuration
 
-### Required Repository Secrets
+### Required Repository Variables
 
-Set up these secrets in your GitHub repository settings:
+Set up these variables in your GitHub repository settings (Secrets and variables > Actions):
 
-1. **AWS_ACCESS_KEY_ID**: Your AWS access key ID
-2. **AWS_SECRET_ACCESS_KEY**: Your AWS secret access key
+1. **AWS_ROLE_ARN**: ARN of the IAM role created for GitHub Actions OIDC authentication
 
 ### Environment Configuration
 

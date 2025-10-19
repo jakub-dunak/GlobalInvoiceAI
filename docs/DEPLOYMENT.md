@@ -20,10 +20,54 @@ This guide provides step-by-step instructions for deploying the GlobalInvoiceAI 
    ```
    Enter your AWS Access Key ID, Secret Access Key, default region, and output format.
 
-3. **Create S3 Bucket** for CloudFormation packaging:
+3. **Set up GitHub OIDC Provider** (Required for GitHub Actions):
    ```bash
-   aws s3 mb s3://your-deployment-bucket-name
+   # Create OIDC provider for GitHub
+   aws iam create-open-id-connect-provider \
+     --url https://token.actions.githubusercontent.com \
+     --client-id-list sts.amazonaws.com \
+     --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
+
+   # Create IAM role for GitHub Actions
+   # Replace YOUR_AWS_ACCOUNT_ID and YOUR_GITHUB_REPO with actual values
+   aws iam create-role \
+     --role-name GitHubActionsRole \
+     --assume-role-policy-document '{
+       "Version": "2012-10-17",
+       "Statement": [
+         {
+           "Effect": "Allow",
+           "Principal": {
+             "Federated": "arn:aws:iam::YOUR_AWS_ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
+           },
+           "Action": "sts:AssumeRoleWithWebIdentity",
+           "Condition": {
+             "StringEquals": {
+               "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+             },
+             "StringLike": {
+               "token.actions.githubusercontent.com:sub": "repo:YOUR_GITHUB_ORG/YOUR_GITHUB_REPO:*"
+             }
+           }
+         }
+       ]
+     }'
+
+   # Attach CloudFormation deployment permissions
+   aws iam attach-role-policy \
+     --role-name GitHubActionsRole \
+     --policy-arn arn:aws:iam::aws:policy/CloudWatchFullAccess
+
+   aws iam attach-role-policy \
+     --role-name GitHubActionsRole \
+     --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+
+   # Note: Use least-privilege policies in production
    ```
+
+4. **Configure GitHub Repository Variables**:
+   - Go to your GitHub repository → Settings → Secrets and variables → Actions
+   - Add repository variable: `AWS_ROLE_ARN` with value `arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/GitHubActionsRole`
 
 4. **Enable Required Services**:
    - Amazon Bedrock (request access if needed)
@@ -42,9 +86,8 @@ cd GlobalInvoiceAI
 ### Repository Configuration
 
 1. **Create GitHub Repository** (if not already done)
-2. **Set Repository Secrets** in GitHub Settings > Secrets and variables > Actions:
-   - `AWS_ACCESS_KEY_ID`: Your AWS access key ID
-   - `AWS_SECRET_ACCESS_KEY`: Your AWS secret access key
+2. **Set Repository Variables** in GitHub Settings > Secrets and variables > Actions:
+   - `AWS_ROLE_ARN`: ARN of the IAM role created for GitHub Actions OIDC authentication
 
 3. **Configure Branch Protection** (optional but recommended):
    - Require status checks before merging
@@ -205,9 +248,16 @@ Access the monitoring dashboard:
 #### GitHub Actions Deployment Fails
 **Error**: `AWS credentials not configured`
 **Solution**:
-1. Verify repository secrets are set correctly
-2. Check that AWS credentials have required permissions
-3. Ensure the IAM user has CloudFormation, ECR, and Lambda permissions
+1. Verify the OIDC provider is created in AWS IAM
+2. Check that the IAM role has the correct trust policy for GitHub Actions
+3. Ensure the repository variable `AWS_ROLE_ARN` is set correctly
+4. Verify the IAM role has CloudFormation, ECR, and Lambda permissions
+
+**Error**: `Access denied`
+**Solution**:
+1. Check the IAM role trust policy allows your GitHub repository
+2. Ensure the role has the necessary permissions attached
+3. Verify the OIDC thumbprint is current (may need updating)
 
 **Error**: `ECR repository not found`
 **Solution**: The CloudFormation stack must be deployed first before the AgentCore build step runs
@@ -264,10 +314,12 @@ aws s3 rm s3://your-deployment-bucket-name --recursive
 
 ## Security Best Practices
 
-1. **IAM Roles**: Use least-privilege permissions
-2. **Network**: Consider VPC endpoints for production
-3. **Encryption**: All data encrypted at rest and in transit
-4. **Monitoring**: Enable CloudTrail for audit logging
+1. **OIDC Authentication**: Use GitHub OIDC provider instead of long-lived credentials
+2. **IAM Roles**: Use least-privilege permissions with role-based access
+3. **Network**: Consider VPC endpoints for production deployments
+4. **Encryption**: All data encrypted at rest and in transit
+5. **Monitoring**: Enable CloudTrail for audit logging and compliance
+6. **Branch Protection**: Require reviews and status checks before merging
 
 *Note: External API keys are no longer used in this version. In production, you would implement proper API key management for real-time services.*
 
