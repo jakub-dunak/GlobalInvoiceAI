@@ -1,20 +1,20 @@
 name: Deploy GlobalInvoiceAI
 
 on:
-  push:
-    branches:
-      - main
-      - develop
-    paths:
-      - 'cloudformation/**'
-      - 'agentcore/**'
-      - '.github/workflows/**'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'cloudformation/**'
-      - 'agentcore/**'
+  # push:
+  #   branches:
+  #     - main
+  #     - develop
+  #   paths:
+  #     - 'cloudformation/**'
+  #     - 'agentcore/**'
+  #     - '.github/workflows/**'
+  # pull_request:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'cloudformation/**'
+  #     - 'agentcore/**'
   workflow_dispatch:
     inputs:
       environment:
