@@ -244,7 +244,43 @@ Test the system with provided sample invoices:
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)**.
+
+### 📋 License Summary
+
+**✅ Allowed for Non-Commercial Use:**
+- Educational and research purposes
+- Personal projects and learning
+- Non-profit organizations
+- Sharing and adaptation with attribution
+
+**❌ Not Allowed for Commercial Use:**
+- Any commercial software development
+- For-profit business applications
+- Commercial services or products
+- Monetized deployments
+
+### 📝 Attribution Requirements
+
+When using this software for non-commercial purposes, provide attribution:
+
+```
+GlobalInvoiceAI Agent - AI-Powered Invoice Management System
+Copyright (c) 2024 GlobalInvoiceAI
+Licensed under CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/)
+```
+
+### 💼 Commercial Licensing
+
+For commercial use, please contact:
+- **Email**: licensing@globalinvoiceai.com
+- **Purpose**: Commercial licensing inquiries
+
+---
+
+**Full license text:** See the [LICENSE](LICENSE) file for complete terms and conditions.
+
+**License URL:** https://creativecommons.org/licenses/by-nc/4.0/
 
 ## 🙏 Acknowledgments
 
