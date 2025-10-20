@@ -3,7 +3,7 @@ import axios from 'axios';
 // API service for GlobalInvoiceAI
 class ApiService {
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_URL || 'https://your-api-gateway-url.execute-api.us-east-1.amazonaws.com/dev';
+    this.baseURL = process.env.REACT_APP_API_URL || 'https://your-api-gateway-url.execute-api.us-west-2.amazonaws.com/dev';
   }
 
   // Get authentication headers

@@ -6,7 +6,7 @@
 set -e
 
 # Configuration
-AWS_REGION=${AWS_REGION:-us-east-1}
+AWS_REGION=${AWS_REGION:-us-west-2}
 ECR_REPO_NAME=${ECR_REPO_NAME:-globalinvoiceai-agent-dev}
 IMAGE_TAG=${IMAGE_TAG:-latest}
 

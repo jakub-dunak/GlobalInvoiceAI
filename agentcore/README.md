@@ -49,7 +49,7 @@ The agent includes the following tools:
    ./build.sh
 
    # Or manually:
-   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin YOUR_ECR_URI
+   aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin YOUR_ECR_URI
    docker build -t YOUR_ECR_URI:latest .
    docker push YOUR_ECR_URI:latest
    ```

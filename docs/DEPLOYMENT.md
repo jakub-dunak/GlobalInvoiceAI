@@ -135,9 +135,9 @@ aws cloudformation deploy \
   --parameter-overrides \
     Environment=dev \
     CognitoDomainPrefix=YOUR_GENERATED_DOMAIN_PREFIX \
-    DeploymentArtifactsBucket=globalinvoiceai-deployment-us-east-1-dev \
+    DeploymentArtifactsBucket=globalinvoiceai-deployment-us-west-2-dev \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
-  --region us-east-1
+  --region us-west-2
 ```
 
 **Note:** Generate a unique `CognitoDomainPrefix` value. The GitHub Actions workflow automatically generates and validates unique domain prefixes.
@@ -376,7 +376,7 @@ aws cloudformation delete-stack \
   --stack-name globalinvoiceai-dev
 
 # Clean up Lambda artifacts from S3 bucket (bucket is reused for future deployments)
-aws s3 rm s3://globalinvoiceai-deployment-us-east-1-dev/lambda/ --recursive
+aws s3 rm s3://globalinvoiceai-deployment-us-west-2-dev/lambda/ --recursive
 ```
 
 ## Security Best Practices

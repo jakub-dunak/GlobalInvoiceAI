@@ -46,7 +46,7 @@ function App({ signOut, user }) {
   // Configure Amplify
   Amplify.configure({
     Auth: {
-      region: process.env.REACT_APP_REGION || 'us-east-1',
+      region: process.env.REACT_APP_REGION || 'us-west-2',
       userPoolId: process.env.REACT_APP_USER_POOL_ID,
       userPoolWebClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID,
     },
@@ -54,8 +54,8 @@ function App({ signOut, user }) {
       endpoints: [
         {
           name: 'GlobalInvoiceAI',
-          endpoint: process.env.REACT_APP_API_URL || 'https://your-api-gateway-url.execute-api.us-east-1.amazonaws.com/dev',
-          region: process.env.REACT_APP_REGION || 'us-east-1',
+          endpoint: process.env.REACT_APP_API_URL || 'https://your-api-gateway-url.execute-api.us-west-2.amazonaws.com/dev',
+          region: process.env.REACT_APP_REGION || 'us-west-2',
         },
       ],
     },
