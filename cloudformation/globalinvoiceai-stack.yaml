@@ -612,15 +612,6 @@ Resources:
         - ALLOW_ADMIN_USER_PASSWORD_AUTH
       SupportedIdentityProviders:
         - COGNITO
-      # CallbackURLs will be configured after Amplify deployment
-      # Use placeholder that will be updated post-deployment
-      AllowedOAuthFlows:
-        - code
-        - implicit
-      AllowedOAuthScopes:
-        - email
-        - openid
-        - profile
 
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
