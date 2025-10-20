@@ -570,7 +570,8 @@ Resources:
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: !Sub '${AWS::StackName}-users-${Environment}'
-      AllowAdminCreateUserOnly: false
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
       AutoVerifiedAttributes:
         - email
       Policies:
