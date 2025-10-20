@@ -160,13 +160,8 @@ jobs:
             aws cloudformation wait stack-delete-complete --stack-name ${STACK_NAME} --region ${{ env.AWS_REGION }}
             echo "✅ Failed stack deleted successfully - ready for new deployment"
           elif [ "$STACK_STATUS" = "UPDATE_ROLLBACK_COMPLETE" ]; then
-            echo "🔄 Stack is in UPDATE_ROLLBACK_COMPLETE state, attempting to continue rollback..."
-            aws cloudformation continue-update-rollback --stack-name ${STACK_NAME} --region ${{ env.AWS_REGION }} 2>/dev/null || {
-              echo "❌ Continue rollback failed, deleting stack..."
-              aws cloudformation delete-stack --stack-name ${STACK_NAME} --region ${{ env.AWS_REGION }}
-              aws cloudformation wait stack-delete-complete --stack-name ${STACK_NAME} --region ${{ env.AWS_REGION }}
-              echo "✅ Stack deleted - ready for new deployment"
-            }
+            echo "🔄 Stack is in UPDATE_ROLLBACK_COMPLETE state (rolled back to working configuration) - proceeding with update..."
+            echo "✅ Stack is in recoverable state - will attempt update"
           elif [ "$STACK_STATUS" = "UPDATE_IN_PROGRESS" ] || [ "$STACK_STATUS" = "CREATE_IN_PROGRESS" ]; then
             echo "⏳ Stack update/create in progress, waiting for completion..."
             aws cloudformation wait stack-create-complete --stack-name ${STACK_NAME} --region ${{ env.AWS_REGION }} 2>/dev/null ||
