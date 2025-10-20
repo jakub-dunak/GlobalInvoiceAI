@@ -38,6 +38,8 @@ jobs:
   validate:
     name: Validate CloudFormation Template
     runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
     outputs:
       template-valid: ${{ steps.validate.outputs.valid }}
     steps:
