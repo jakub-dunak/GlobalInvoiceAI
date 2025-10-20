@@ -85,7 +85,8 @@ jobs:
 
       - name: Setup S3 bucket for deployment artifacts
         run: |
-          BUCKET_NAME="globalinvoiceai-deployment-${{ env.AWS_REGION }}-${{ env.ENVIRONMENT }}"
+          ENVIRONMENT="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+          BUCKET_NAME="globalinvoiceai-deployment-${{ env.AWS_REGION }}-${ENVIRONMENT}"
           echo "DEPLOYMENT_BUCKET=${BUCKET_NAME}" >> $GITHUB_ENV
 
           # Check if bucket exists
