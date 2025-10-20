@@ -721,26 +721,11 @@ Resources:
       AuthorizerId: !Ref ApiGatewayAuthorizer
       RequestParameters:
         method.request.path.invoiceId: true
+        method.request.querystring.pdf: false
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
-
-  GetInvoicePdfMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref RestApi
-      ResourceId: !Ref InvoiceResource
-      HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref ApiGatewayAuthorizer
-      RequestParameters:
-        method.request.path.invoiceId: true
-        method.request.querystring.format: false
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PDFGeneratorFunction.Arn}/invocations'
 
   GetInvoicesStatsMethod:
     Type: AWS::ApiGateway::Method
@@ -854,7 +839,6 @@ Resources:
       - GetInvoicesMethod
       - PostInvoicesMethod
       - GetInvoiceMethod
-      - GetInvoicePdfMethod
       - GetInvoicesStatsMethod
       - GetLogsMethod
       - GetConfigMethod
