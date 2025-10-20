@@ -98,7 +98,7 @@ aws cloudformation deploy \
   --parameter-overrides \
     Environment=dev \
     CognitoDomainPrefix=globalinvoiceai-dev \
-  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND
+  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
 ```
 
 ### 3. Deploy (Automated with GitHub Actions)

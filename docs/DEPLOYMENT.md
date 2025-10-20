@@ -130,7 +130,7 @@ aws cloudformation deploy \
   --parameter-overrides \
     Environment=dev \
     CognitoDomainPrefix=YOUR_GENERATED_DOMAIN_PREFIX \
-  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
   --region us-east-1
 ```
 

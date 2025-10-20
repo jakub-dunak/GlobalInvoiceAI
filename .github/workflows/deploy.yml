@@ -185,7 +185,7 @@ jobs:
               Environment=${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }} \
               CognitoDomainPrefix=${{ steps.stack-config.outputs.cognito-prefix }} \
               DeploymentArtifactsBucket=${{ env.DEPLOYMENT_BUCKET }} \
-            --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
             --region ${{ env.AWS_REGION }} \
             --no-fail-on-empty-changeset
 
