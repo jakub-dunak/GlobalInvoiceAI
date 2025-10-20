@@ -104,6 +104,33 @@ jobs:
             --output-template-file packaged-template.yaml \
             --region ${{ env.AWS_REGION }}
 
+      - name: Package Lambda functions
+        run: |
+          echo "📦 Packaging Lambda functions..."
+          ENVIRONMENT="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+
+          # Package invoice-trigger function
+          cd lambda/invoice-trigger
+          zip -r ../../../invoice-trigger-${ENVIRONMENT}.zip .
+          cd ../..
+
+          # Package pdf-generator function
+          cd lambda/pdf-generator
+          zip -r ../../../pdf-generator-${ENVIRONMENT}.zip .
+          cd ../..
+
+          # Package agentcore-deploy function
+          cd lambda/agentcore-deploy
+          zip -r ../../../agentcore-deploy-${ENVIRONMENT}.zip .
+          cd ../..
+
+          # Upload Lambda packages to S3
+          aws s3 cp invoice-trigger-${ENVIRONMENT}.zip s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/invoice-trigger-${ENVIRONMENT}.zip --region ${{ env.AWS_REGION }}
+          aws s3 cp pdf-generator-${ENVIRONMENT}.zip s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/pdf-generator-${ENVIRONMENT}.zip --region ${{ env.AWS_REGION }}
+          aws s3 cp agentcore-deploy-${ENVIRONMENT}.zip s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/agentcore-deploy-${ENVIRONMENT}.zip --region ${{ env.AWS_REGION }}
+
+          echo "✅ Lambda functions packaged and uploaded"
+
       - name: Determine stack name and parameters
         id: stack-config
         run: |
@@ -151,6 +178,7 @@ jobs:
             --parameter-overrides \
               Environment=${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }} \
               CognitoDomainPrefix=${{ steps.stack-config.outputs.cognito-prefix }} \
+              DeploymentArtifactsBucket=${{ env.DEPLOYMENT_BUCKET }} \
             --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
             --region ${{ env.AWS_REGION }} \
             --no-fail-on-empty-changeset

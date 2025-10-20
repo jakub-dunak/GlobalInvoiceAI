@@ -1,2 +1,8 @@
 docs/DEMO_SCRIPT.md
 .cursor/
+
+# Lambda deployment artifacts
+*.zip
+invoice-trigger-*.zip
+pdf-generator-*.zip
+agentcore-deploy-*.zip
