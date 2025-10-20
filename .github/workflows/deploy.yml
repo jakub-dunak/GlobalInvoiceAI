@@ -83,16 +83,22 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/personal-github-oidc-role
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Create S3 bucket for deployment artifacts
+      - name: Setup S3 bucket for deployment artifacts
         run: |
-          BUCKET_NAME="globalinvoiceai-deployment-${{ github.run_id }}-${{ github.run_attempt }}"
+          BUCKET_NAME="globalinvoiceai-deployment-${{ env.AWS_REGION }}-${{ env.ENVIRONMENT }}"
           echo "DEPLOYMENT_BUCKET=${BUCKET_NAME}" >> $GITHUB_ENV
 
-          if aws s3 mb s3://${BUCKET_NAME} --region ${{ env.AWS_REGION }}; then
-            echo "✅ Created deployment bucket: ${BUCKET_NAME}"
+          # Check if bucket exists
+          if aws s3 ls s3://${BUCKET_NAME} --region ${{ env.AWS_REGION }} 2>/dev/null; then
+            echo "✅ Using existing deployment bucket: ${BUCKET_NAME}"
           else
-            echo "❌ Failed to create deployment bucket"
-            exit 1
+            echo "📦 Creating new deployment bucket: ${BUCKET_NAME}"
+            if aws s3 mb s3://${BUCKET_NAME} --region ${{ env.AWS_REGION }}; then
+              echo "✅ Created deployment bucket: ${BUCKET_NAME}"
+            else
+              echo "❌ Failed to create deployment bucket"
+              exit 1
+            fi
           fi
 
       - name: Package CloudFormation template
@@ -136,6 +142,41 @@ jobs:
           aws s3 cp agentcore-deploy-${ENVIRONMENT}.zip s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/agentcore-deploy-${ENVIRONMENT}.zip --region ${{ env.AWS_REGION }}
 
           echo "✅ Lambda functions packaged and uploaded"
+
+      - name: Check stack status and prepare for deployment
+        run: |
+          STACK_NAME="globalinvoiceai-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+
+          # Check if stack exists and its status
+          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --region ${{ env.AWS_REGION }} --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+          if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ]; then
+            echo "🧹 Found failed stack in ${STACK_STATUS} state, deleting before redeployment..."
+            aws cloudformation delete-stack --stack-name ${STACK_NAME} --region ${{ env.AWS_REGION }}
+
+            # Wait for deletion to complete
+            echo "⏳ Waiting for stack deletion..."
+            aws cloudformation wait stack-delete-complete --stack-name ${STACK_NAME} --region ${{ env.AWS_REGION }}
+            echo "✅ Failed stack deleted successfully - ready for new deployment"
+          elif [ "$STACK_STATUS" = "UPDATE_ROLLBACK_COMPLETE" ]; then
+            echo "🔄 Stack is in UPDATE_ROLLBACK_COMPLETE state, attempting to continue rollback..."
+            aws cloudformation continue-update-rollback --stack-name ${STACK_NAME} --region ${{ env.AWS_REGION }} 2>/dev/null || {
+              echo "❌ Continue rollback failed, deleting stack..."
+              aws cloudformation delete-stack --stack-name ${STACK_NAME} --region ${{ env.AWS_REGION }}
+              aws cloudformation wait stack-delete-complete --stack-name ${STACK_NAME} --region ${{ env.AWS_REGION }}
+              echo "✅ Stack deleted - ready for new deployment"
+            }
+          elif [ "$STACK_STATUS" = "UPDATE_IN_PROGRESS" ] || [ "$STACK_STATUS" = "CREATE_IN_PROGRESS" ]; then
+            echo "⏳ Stack update/create in progress, waiting for completion..."
+            aws cloudformation wait stack-create-complete --stack-name ${STACK_NAME} --region ${{ env.AWS_REGION }} 2>/dev/null ||
+            aws cloudformation wait stack-update-complete --stack-name ${STACK_NAME} --region ${{ env.AWS_REGION }} 2>/dev/null || {
+              echo "❌ Stack operation failed, checking status..."
+              STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --region ${{ env.AWS_REGION }} --query 'Stacks[0].StackStatus' --output text 2>/dev/null)
+              echo "📋 Final stack status: ${STACK_STATUS}"
+            }
+          else
+            echo "📋 Stack status: ${STACK_STATUS} - proceeding with deployment"
+          fi
 
       - name: Determine stack name and parameters
         id: stack-config
@@ -364,7 +405,7 @@ jobs:
           fi
 
   cleanup:
-    name: Cleanup Deployment Artifacts
+    name: Cleanup Lambda Artifacts
     runs-on: ubuntu-latest
     if: always()
     needs: [package-and-deploy, build-agentcore]
@@ -375,13 +416,19 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/personal-github-oidc-role
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Clean up deployment bucket
+      - name: Clean up deployment artifacts
         run: |
-          # Clean up the temporary deployment bucket if it exists
+          # Clean up Lambda function ZIP files from deployment bucket
           if [ ! -z "${{ env.DEPLOYMENT_BUCKET }}" ]; then
-            echo "🧹 Cleaning up deployment bucket: ${{ env.DEPLOYMENT_BUCKET }}"
-            aws s3 rm s3://${{ env.DEPLOYMENT_BUCKET }} --recursive || true
-            aws s3 rb s3://${{ env.DEPLOYMENT_BUCKET }} || true
+            ENVIRONMENT="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+            echo "🧹 Cleaning up Lambda ZIP files from bucket: ${{ env.DEPLOYMENT_BUCKET }}"
+
+            # Remove Lambda function ZIP files
+            aws s3 rm s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/invoice-trigger-${ENVIRONMENT}.zip || true
+            aws s3 rm s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/pdf-generator-${ENVIRONMENT}.zip || true
+            aws s3 rm s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/agentcore-deploy-${ENVIRONMENT}.zip || true
+
+            echo "✅ Lambda artifacts cleaned up (bucket preserved for reuse)"
           fi
 
   notify:

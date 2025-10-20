@@ -117,19 +117,25 @@ If you prefer manual deployment:
 ### Option A: Using AWS CLI (Recommended)
 
 ```bash
-# 1. Package the CloudFormation template
+# 1. Create deployment bucket (or use existing)
+# The bucket name follows the pattern: globalinvoiceai-deployment-{region}-{environment}
+# Example: globalinvoiceai-deployment-us-east-1-dev
+aws s3 mb s3://globalinvoiceai-deployment-us-east-1-dev || echo "Bucket already exists"
+
+# 2. Package the CloudFormation template
 aws cloudformation package \
   --template-file cloudformation/globalinvoiceai-stack.yaml \
-  --s3-bucket your-deployment-bucket-name \
+  --s3-bucket globalinvoiceai-deployment-us-east-1-dev \
   --output-template-file packaged-template.yaml
 
-# 2. Deploy the stack
+# 3. Deploy the stack
 aws cloudformation deploy \
   --template-file packaged-template.yaml \
   --stack-name globalinvoiceai-dev \
   --parameter-overrides \
     Environment=dev \
     CognitoDomainPrefix=YOUR_GENERATED_DOMAIN_PREFIX \
+    DeploymentArtifactsBucket=globalinvoiceai-deployment-us-east-1-dev \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
   --region us-east-1
 ```
@@ -319,8 +325,8 @@ To remove all resources:
 aws cloudformation delete-stack \
   --stack-name globalinvoiceai-dev
 
-# Delete S3 bucket contents (if needed)
-aws s3 rm s3://your-deployment-bucket-name --recursive
+# Clean up Lambda artifacts from S3 bucket (bucket is reused for future deployments)
+aws s3 rm s3://globalinvoiceai-deployment-us-east-1-dev/lambda/ --recursive
 ```
 
 ## Security Best Practices

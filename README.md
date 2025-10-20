@@ -86,10 +86,13 @@ aws configure
 ### 2. Deploy Infrastructure
 
 ```bash
+# Create reusable deployment bucket (if not exists)
+aws s3 mb s3://globalinvoiceai-deployment-us-east-1-dev || echo "Bucket already exists"
+
 # Package and deploy CloudFormation stack
 aws cloudformation package \
   --template-file cloudformation/globalinvoiceai-stack.yaml \
-  --s3-bucket YOUR_DEPLOYMENT_BUCKET \
+  --s3-bucket globalinvoiceai-deployment-us-east-1-dev \
   --output-template-file packaged-template.yaml
 
 aws cloudformation deploy \
@@ -98,6 +101,7 @@ aws cloudformation deploy \
   --parameter-overrides \
     Environment=dev \
     CognitoDomainPrefix=globalinvoiceai-dev \
+    DeploymentArtifactsBucket=globalinvoiceai-deployment-us-east-1-dev \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
 ```
 
