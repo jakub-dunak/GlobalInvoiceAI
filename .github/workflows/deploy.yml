@@ -48,7 +48,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v5.0.0
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/personal-github-oidc-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Validate CloudFormation template
@@ -80,7 +80,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v5.0.0
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/personal-github-oidc-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Create S3 bucket for deployment artifacts
@@ -110,12 +110,34 @@ jobs:
           STACK_NAME="globalinvoiceai-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
           echo "stack-name=${STACK_NAME}" >> $GITHUB_OUTPUT
 
-          # Set environment-specific parameters
-          if [ "${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}" = "prod" ]; then
-            COGNITO_PREFIX="globalinvoiceai-prod"
+          # Generate unique Cognito domain prefix with validation
+          echo "🔄 Generating unique Cognito domain prefix..."
+          ENVIRONMENT="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+          BASE_PREFIX="globalinvoiceai-${ENVIRONMENT}"
+
+          # Check if base prefix is available
+          DOMAIN_CHECK=$(aws cognito-idp describe-user-pool-domain --domain ${BASE_PREFIX} --region ${{ env.AWS_REGION }} 2>/dev/null || echo "available")
+
+          if [ "$DOMAIN_CHECK" = "available" ]; then
+            COGNITO_PREFIX="${BASE_PREFIX}"
+            echo "✅ Using available domain: ${COGNITO_PREFIX}"
           else
-            COGNITO_PREFIX="globalinvoiceai-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+            echo "📝 Base domain taken, generating unique suffix..."
+            # Generate random suffix if base is taken
+            RANDOM_SUFFIX=$(echo $RANDOM | md5sum | head -c 6)
+            COGNITO_PREFIX="${BASE_PREFIX}-${RANDOM_SUFFIX}"
+            echo "🔄 Generated unique domain: ${COGNITO_PREFIX}"
+
+            # Validate uniqueness one more time
+            FINAL_CHECK=$(aws cognito-idp describe-user-pool-domain --domain ${COGNITO_PREFIX} --region ${{ env.AWS_REGION }} 2>/dev/null || echo "available")
+            if [ "$FINAL_CHECK" != "available" ]; then
+              echo "❌ Domain still not available, generating another suffix..."
+              RANDOM_SUFFIX=$(date +%s | tail -c 6)
+              COGNITO_PREFIX="${BASE_PREFIX}-${RANDOM_SUFFIX}"
+              echo "✅ Final domain: ${COGNITO_PREFIX}"
+            fi
           fi
+
           echo "cognito-prefix=${COGNITO_PREFIX}" >> $GITHUB_OUTPUT
 
       - name: Deploy CloudFormation stack
@@ -241,7 +263,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v5.0.0
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/personal-github-oidc-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Set up Docker Buildx
@@ -316,7 +338,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v5.0.0
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/personal-github-oidc-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Clean up deployment bucket

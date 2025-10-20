@@ -18,8 +18,7 @@ Parameters:
 
   CognitoDomainPrefix:
     Type: String
-    Default: globalinvoiceai
-    Description: Unique domain prefix for Cognito hosted UI
+    Description: Unique domain prefix for Cognito hosted UI (auto-generated during deployment)
 
 Resources:
   # ========================================

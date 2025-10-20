@@ -31,7 +31,7 @@ This guide provides step-by-step instructions for deploying the GlobalInvoiceAI 
    # Create IAM role for GitHub Actions
    # Replace YOUR_AWS_ACCOUNT_ID and YOUR_GITHUB_REPO with actual values
    aws iam create-role \
-     --role-name GitHubActionsRole \
+     --role-name personal-github-oidc-role \
      --assume-role-policy-document '{
        "Version": "2012-10-17",
        "Statement": [
@@ -55,19 +55,19 @@ This guide provides step-by-step instructions for deploying the GlobalInvoiceAI 
 
    # Attach CloudFormation deployment permissions
    aws iam attach-role-policy \
-     --role-name GitHubActionsRole \
+     --role-name personal-github-oidc-role \
      --policy-arn arn:aws:iam::aws:policy/CloudWatchFullAccess
 
    aws iam attach-role-policy \
-     --role-name GitHubActionsRole \
+     --role-name personal-github-oidc-role \
      --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
 
    # Note: Use least-privilege policies in production
    ```
 
-4. **Configure GitHub Repository Variables**:
+4. **Configure GitHub Repository Secrets**:
    - Go to your GitHub repository → Settings → Secrets and variables → Actions
-   - Add repository variable: `AWS_ROLE_ARN` with value `arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/GitHubActionsRole`
+   - Add repository secret: `AWS_ACCOUNT_ID` with your AWS account ID
 
 4. **Enable Required Services**:
    - Amazon Bedrock (request access if needed)
@@ -86,8 +86,8 @@ cd GlobalInvoiceAI
 ### Repository Configuration
 
 1. **Create GitHub Repository** (if not already done)
-2. **Set Repository Variables** in GitHub Settings > Secrets and variables > Actions:
-   - `AWS_ROLE_ARN`: ARN of the IAM role created for GitHub Actions OIDC authentication
+2. **Set Repository Secrets** in GitHub Settings > Secrets and variables > Actions:
+   - `AWS_ACCOUNT_ID`: Your AWS account ID (used to construct the IAM role ARN for GitHub Actions OIDC authentication)
 
 3. **Configure Branch Protection** (optional but recommended):
    - Require status checks before merging
@@ -129,10 +129,12 @@ aws cloudformation deploy \
   --stack-name globalinvoiceai-dev \
   --parameter-overrides \
     Environment=dev \
-    CognitoDomainPrefix=globalinvoiceai-dev \
+    CognitoDomainPrefix=YOUR_GENERATED_DOMAIN_PREFIX \
   --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
   --region us-east-1
 ```
+
+**Note:** Generate a unique `CognitoDomainPrefix` value. The GitHub Actions workflow automatically generates and validates unique domain prefixes.
 
 ### Option B: Using AWS Console
 1. Go to AWS CloudFormation Console
@@ -140,7 +142,7 @@ aws cloudformation deploy \
 3. Upload `cloudformation/globalinvoiceai-stack.yaml`
 4. Enter parameters:
    - Environment: `dev`
-   - CognitoDomainPrefix: `globalinvoiceai-dev`
+   - CognitoDomainPrefix: `YOUR_GENERATED_DOMAIN_PREFIX` (generate a unique value)
 5. Deploy stack
 
 ## Step 4: Post-Deployment Configuration
@@ -286,6 +288,15 @@ aws cloudformation validate-template \
 1. Verify Cognito User Pool was created successfully
 2. Check stack outputs for correct User Pool ID
 3. Ensure domain prefix is unique
+
+**Error**: `Domain already exists`
+**Solution**: The Cognito domain prefix must be unique across all AWS accounts. Generate a new unique prefix using:
+```bash
+# Generate unique domain prefix
+RANDOM_SUFFIX=$(echo $RANDOM | md5sum | head -c 6)
+DOMAIN_PREFIX="globalinvoiceai-dev-${RANDOM_SUFFIX}"
+echo "Use domain prefix: ${DOMAIN_PREFIX}"
+```
 
 # API Gateway Issues removed - no longer using external APIs
 

@@ -105,6 +105,8 @@ aws cloudformation deploy \
 
 The deployment is fully automated using GitHub Actions. The workflow handles:
 
+- ✅ **Domain Generation**: Auto-generates unique Cognito domain prefixes
+
 - ✅ **CloudFormation Validation**: Template syntax and structure validation
 - ✅ **Infrastructure Deployment**: Automated stack creation and updates
 - ✅ **AgentCore Build**: Docker image building and ECR deployment
@@ -121,11 +123,11 @@ The deployment is fully automated using GitHub Actions. The workflow handles:
 
 ## 🤖 GitHub Actions Configuration
 
-### Required Repository Variables
+### Required Repository Secrets
 
-Set up these variables in your GitHub repository settings (Secrets and variables > Actions):
+Set up these secrets in your GitHub repository settings (Secrets and variables > Actions):
 
-1. **AWS_ROLE_ARN**: ARN of the IAM role created for GitHub Actions OIDC authentication
+1. **AWS_ACCOUNT_ID**: Your AWS account ID (used to construct the IAM role ARN for GitHub Actions OIDC authentication)
 
 ### Environment Configuration
 
