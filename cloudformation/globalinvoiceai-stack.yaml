@@ -665,8 +665,8 @@ Resources:
     Type: AWS::Amplify::App
     Properties:
       Name: !Sub '${AWS::StackName}-ui-${Environment}'
-      Repository: 'https://github.com/YOUR_USERNAME/GlobalInvoiceAI'  # Replace with actual repo
-      AccessToken: 'YOUR_GITHUB_TOKEN'  # Replace with actual token or use OAuth
+      # Repository connection will be configured manually after deployment
+      # via AWS Console or CLI to avoid credential issues in CloudFormation
       BuildSpec: |
         version: 1
         frontend:
@@ -803,6 +803,12 @@ Outputs:
     Value: !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayUrl-${Environment}'
+
+  AmplifyAppId:
+    Description: Amplify application ID
+    Value: !Ref AmplifyApp
+    Export:
+      Name: !Sub '${AWS::StackName}-AmplifyAppId-${Environment}'
 
   AmplifyAppUrl:
     Description: Amplify application URL

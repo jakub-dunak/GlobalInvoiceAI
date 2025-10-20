@@ -163,6 +163,56 @@ aws cloudformation describe-stacks \
   --output table
 ```
 
+### 2. Connect Amplify App to GitHub
+
+The CloudFormation template creates an Amplify app without GitHub integration to avoid credential issues. Connect it manually:
+
+#### Option A: AWS Console
+1. Go to AWS Amplify Console
+2. Select the app named `globalinvoiceai-dev-ui-dev` (or your stack name)
+3. Click "App settings" → "Repository"
+4. Click "Connect repository"
+5. Select "GitHub" and authorize AWS Amplify
+6. Select your repository: `YOUR_USERNAME/GlobalInvoiceAI`
+7. Choose branch: `main`
+8. Click "Save"
+
+#### Option B: AWS CLI
+```bash
+# Get Amplify App ID from stack outputs
+AMPLIFY_APP_ID=$(aws cloudformation describe-stacks \
+  --stack-name globalinvoiceai-dev \
+  --query 'Stacks[0].Outputs[?OutputKey==`AmplifyAppId`].OutputValue' \
+  --output text)
+
+# Update Amplify app with GitHub repository
+aws amplify update-app \
+  --app-id $AMPLIFY_APP_ID \
+  --repository https://github.com/YOUR_USERNAME/GlobalInvoiceAI \
+  --access-token YOUR_GITHUB_PERSONAL_ACCESS_TOKEN \
+  --build-spec "$(cat <<EOF
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: build
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+EOF
+)"
+```
+
+**Note:** You'll need a GitHub Personal Access Token with `repo` permissions.
+
 Save these values:
 - `AmplifyAppUrl` - Admin dashboard URL
 - `ApiGatewayUrl` - API endpoint for integrations

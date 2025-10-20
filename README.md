@@ -109,6 +109,8 @@ aws cloudformation deploy \
 
 The deployment is fully automated using GitHub Actions. The workflow handles:
 
+- ✅ **Amplify App Creation**: Creates Amplify app (GitHub connection configured manually)
+
 - ✅ **Domain Generation**: Auto-generates unique Cognito domain prefixes
 
 - ✅ **CloudFormation Validation**: Template syntax and structure validation
@@ -157,7 +159,19 @@ The deployment workflow supports multiple environments:
 2. **Deployment Summary**: Download artifact for detailed deployment information
 3. **CloudWatch Dashboard**: Monitor application metrics post-deployment
 
-### 4. Access the Application
+### 4. Post-Deployment Setup
+
+**⚠️ Important:** After CloudFormation deployment completes, you must manually connect the Amplify app to your GitHub repository:
+
+1. Go to AWS Amplify Console
+2. Select your app (named like `globalinvoiceai-dev-ui-dev`)
+3. Go to "App settings" → "Repository"
+4. Connect to GitHub and select your `GlobalInvoiceAI` repository
+5. Choose the `main` branch and save
+
+This step is required because CloudFormation cannot securely store GitHub credentials.
+
+### 5. Access the Application
 
 1. **Admin Dashboard**: Get the Amplify URL from CloudFormation outputs
 2. **API Gateway**: Use the provided API Gateway URL for programmatic access
