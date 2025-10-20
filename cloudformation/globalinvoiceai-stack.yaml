@@ -814,6 +814,7 @@ Resources:
       RestApiId: !Ref RestApi
       Name: CognitoAuthorizer
       Type: COGNITO_USER_POOLS
+      IdentitySource: method.request.header.Authorization
       ProviderARNs:
         - !GetAtt UserPool.Arn
 
