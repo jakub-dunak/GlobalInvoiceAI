@@ -111,18 +111,24 @@ jobs:
 
           # Package invoice-trigger function
           cd lambda/invoice-trigger
-          zip -r ../../../invoice-trigger-${ENVIRONMENT}.zip .
+          zip -r invoice-trigger-${ENVIRONMENT}.zip .
+          mv invoice-trigger-${ENVIRONMENT}.zip ../..
           cd ../..
 
           # Package pdf-generator function
           cd lambda/pdf-generator
-          zip -r ../../../pdf-generator-${ENVIRONMENT}.zip .
+          zip -r pdf-generator-${ENVIRONMENT}.zip .
+          mv pdf-generator-${ENVIRONMENT}.zip ../..
           cd ../..
 
           # Package agentcore-deploy function
           cd lambda/agentcore-deploy
-          zip -r ../../../agentcore-deploy-${ENVIRONMENT}.zip .
+          zip -r agentcore-deploy-${ENVIRONMENT}.zip .
+          mv agentcore-deploy-${ENVIRONMENT}.zip ../..
           cd ../..
+
+          # Verify files exist
+          ls -la *-*.zip
 
           # Upload Lambda packages to S3
           aws s3 cp invoice-trigger-${ENVIRONMENT}.zip s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/invoice-trigger-${ENVIRONMENT}.zip --region ${{ env.AWS_REGION }}
