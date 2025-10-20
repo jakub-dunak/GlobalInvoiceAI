@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Amplify } from 'aws-amplify';
-import { Auth } from 'aws-amplify';
 import { withAuthenticator } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -9,34 +8,21 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import Dashboard from './components/Dashboard';
 import InvoiceList from './components/InvoiceList';
 import ControlPanel from './components/ControlPanel';
-import Login from './components/Login';
 import Navigation from './components/Navigation';
 import { apiService } from './utils/api';
 
 function App({ signOut, user }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    checkAuthState();
-  }, []);
-
-  const checkAuthState = async () => {
-    try {
-      const user = await Auth.currentAuthenticatedUser();
+    if (user) {
       setCurrentUser(user);
-      setIsAuthenticated(true);
-    } catch {
-      setIsAuthenticated(false);
-      setCurrentUser(null);
     }
-  };
+  }, [user]);
 
   const handleSignOut = async () => {
     try {
       await Auth.signOut();
-      setIsAuthenticated(false);
-      setCurrentUser(null);
       signOut();
     } catch (error) {
       console.error('Error signing out:', error);
@@ -60,10 +46,6 @@ function App({ signOut, user }) {
       ],
     },
   });
-
-  if (!isAuthenticated) {
-    return <Login onLogin={checkAuthState} />;
-  }
 
   return (
     <Router>

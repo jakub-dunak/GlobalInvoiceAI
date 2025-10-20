@@ -2,7 +2,7 @@ import json
 import boto3
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import base64
 
 s3_client = boto3.client('s3')
@@ -11,8 +11,12 @@ cloudwatch = boto3.client('cloudwatch')
 ssm = boto3.client('ssm')
 
 def handler(event, context):
-    """Process S3 upload events and trigger AgentCore Runtime"""
+    """Process S3 upload events and API Gateway requests"""
     try:
+        # Check if this is an API Gateway event
+        if 'httpMethod' in event:
+            return handle_api_request(event, context)
+
         # Parse S3 event
         for record in event['Records']:
             bucket_name = record['s3']['bucket']['name']
@@ -140,3 +144,265 @@ def handler(event, context):
         raise e
 
     return {"statusCode": 200, "body": "Processing complete"}
+
+def handle_api_request(event, context):
+    """Handle API Gateway requests"""
+    try:
+        http_method = event['httpMethod']
+        path = event['path']
+        path_parameters = event.get('pathParameters', {})
+        query_parameters = event.get('queryStringParameters', {})
+
+        # Route requests based on path and method
+        if path == '/invoices' and http_method == 'GET':
+            return get_invoices(query_parameters)
+        elif path == '/invoices' and http_method == 'POST':
+            return upload_invoice(event.get('body', '{}'))
+        elif path.startswith('/invoices/') and http_method == 'GET':
+            invoice_id = path_parameters.get('invoiceId')
+            if 'pdf' in query_parameters and query_parameters['pdf'] == 'true':
+                return get_invoice_pdf(invoice_id)
+            else:
+                return get_invoice(invoice_id)
+        elif path == '/invoices/stats' and http_method == 'GET':
+            return get_invoice_stats()
+        elif path == '/logs' and http_method == 'GET':
+            return get_processing_logs(query_parameters)
+        elif path == '/config' and http_method == 'GET':
+            return get_system_config()
+        elif path == '/config' and http_method == 'PUT':
+            return update_system_config(event.get('body', '{}'))
+        elif path == '/metrics' and http_method == 'GET':
+            return get_metrics()
+        else:
+            return {"statusCode": 404, "body": json.dumps({"error": "Not found"})}
+
+    except Exception as e:
+        print(f"API Error: {str(e)}")
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
+def get_invoices(params):
+    """Get list of invoices with optional filtering"""
+    try:
+        invoices_table = dynamodb.Table(os.environ['INVOICES_TABLE'])
+
+        # Build scan parameters
+        scan_params = {}
+        filter_expression = None
+        expression_values = {}
+
+        # Filter by status if provided
+        if 'status' in params:
+            filter_expression = "#status = :status_val"
+            expression_values[':status_val'] = params['status']
+            scan_params['ExpressionAttributeNames'] = {'#status': 'Status'}
+            scan_params['ExpressionAttributeValues'] = expression_values
+
+        if filter_expression:
+            scan_params['FilterExpression'] = filter_expression
+
+        # Add pagination
+        if 'limit' in params:
+            scan_params['Limit'] = int(params['limit'])
+
+        response = invoices_table.scan(**scan_params)
+
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({
+                "invoices": response.get('Items', []),
+                "total": response.get('Count', 0)
+            })
+        }
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
+def upload_invoice(body):
+    """Handle manual invoice upload"""
+    try:
+        # For now, return not implemented - this would need S3 upload handling
+        return {
+            "statusCode": 501,
+            "body": json.dumps({"error": "Manual upload not implemented"})
+        }
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
+def get_invoice(invoice_id):
+    """Get specific invoice details"""
+    try:
+        invoices_table = dynamodb.Table(os.environ['INVOICES_TABLE'])
+        response = invoices_table.get_item(Key={'InvoiceId': invoice_id})
+
+        if 'Item' not in response:
+            return {"statusCode": 404, "body": json.dumps({"error": "Invoice not found"})}
+
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(response['Item'])
+        }
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
+def get_invoice_pdf(invoice_id):
+    """Get invoice PDF - redirect to PDF generator"""
+    try:
+        # Check if invoice exists and is validated
+        invoices_table = dynamodb.Table(os.environ['INVOICES_TABLE'])
+        response = invoices_table.get_item(Key={'InvoiceId': invoice_id})
+
+        if 'Item' not in response:
+            return {"statusCode": 404, "body": json.dumps({"error": "Invoice not found"})}
+
+        invoice = response['Item']
+        if invoice.get('Status') != 'VALIDATED':
+            return {"statusCode": 400, "body": json.dumps({"error": "Invoice not validated"})}
+
+        # Trigger PDF generation
+        pdf_generator = boto3.client('lambda')
+        pdf_response = pdf_generator.invoke(
+            FunctionName=os.environ.get('PDF_GENERATOR_FUNCTION', 'globalinvoiceai-pdf-generator-dev'),
+            InvocationType='RequestResponse',
+            Payload=json.dumps({'invoiceId': invoice_id})
+        )
+
+        if pdf_response['StatusCode'] != 200:
+            return {"statusCode": 500, "body": json.dumps({"error": "PDF generation failed"})}
+
+        pdf_result = json.loads(pdf_response['Payload'].read())
+        if pdf_result.get('statusCode') != 200:
+            return {"statusCode": pdf_result.get('statusCode', 500), "body": json.dumps({"error": "PDF generation failed"})}
+
+        # Get PDF from S3
+        s3_response = s3_client.get_object(
+            Bucket=os.environ['PROCESSED_BUCKET'],
+            Key=f"pdfs/{invoice_id}.pdf"
+        )
+
+        pdf_content = s3_response['Body'].read()
+
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": "application/pdf",
+                "Content-Disposition": f"attachment; filename={invoice_id}.pdf"
+            },
+            "body": base64.b64encode(pdf_content).decode('utf-8'),
+            "isBase64Encoded": True
+        }
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
+def get_invoice_stats():
+    """Get invoice processing statistics"""
+    try:
+        invoices_table = dynamodb.Table(os.environ['INVOICES_TABLE'])
+
+        # Get all invoices for statistics
+        response = invoices_table.scan()
+        invoices = response.get('Items', [])
+
+        total_invoices = len(invoices)
+        processed_today = len([i for i in invoices if i.get('CreatedAt', '').startswith(datetime.utcnow().date().isoformat())])
+        error_rate = len([i for i in invoices if i.get('Status') == 'ERROR']) / max(total_invoices, 1) * 100
+
+        # Calculate average processing time (simplified)
+        avg_time = 0  # Would need to implement proper calculation
+
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({
+                "totalInvoices": total_invoices,
+                "processedToday": processed_today,
+                "errorRate": round(error_rate, 2),
+                "averageProcessingTime": avg_time
+            })
+        }
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
+def get_processing_logs(params):
+    """Get processing logs"""
+    try:
+        logs_table = dynamodb.Table(os.environ['LOGS_TABLE'])
+
+        scan_params = {}
+
+        # Filter by invoice ID if provided
+        if 'invoiceId' in params:
+            scan_params['FilterExpression'] = 'InvoiceId = :invoice_id'
+            scan_params['ExpressionAttributeValues'] = {':invoice_id': params['invoiceId']}
+
+        if 'limit' in params:
+            scan_params['Limit'] = int(params['limit'])
+
+        response = logs_table.scan(**scan_params)
+
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"logs": response.get('Items', [])})
+        }
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
+def get_system_config():
+    """Get system configuration"""
+    # Return default config for now
+    return {
+        "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps({
+            "supportedCurrencies": ["USD", "EUR", "GBP", "INR"],
+            "taxRegions": ["US", "UK", "IN"],
+            "maxFileSize": "10MB"
+        })
+    }
+
+def update_system_config(body):
+    """Update system configuration"""
+    # For now, just acknowledge the request
+    return {
+        "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps({"message": "Configuration updated"})
+    }
+
+def get_metrics():
+    """Get CloudWatch metrics"""
+    try:
+        cloudwatch = boto3.client('cloudwatch')
+
+        # Get metrics for the last 24 hours
+        response = cloudwatch.get_metric_data(
+            MetricDataQueries=[
+                {
+                    'Id': 'invoice_count',
+                    'MetricStat': {
+                        'Metric': {
+                            'Namespace': 'GlobalInvoiceAI',
+                            'MetricName': 'InvoiceProcessed'
+                        },
+                        'Period': 3600,
+                        'Stat': 'Sum'
+                    }
+                }
+            ],
+            StartTime=datetime.utcnow() - timedelta(hours=24),
+            EndTime=datetime.utcnow()
+        )
+
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({
+                "invoiceCount": response.get('MetricDataResults', [{}])[0].get('Values', []),
+                "processingTime": [],
+                "errorRate": []
+            })
+        }
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}

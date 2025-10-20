@@ -81,7 +81,7 @@ s3 = boto3.client('s3')
 def get_tax_rate(country: str, region: str, tax_type: str) -> dict:
     """Get tax rate for country/region from cache or API"""
     # Check DynamoDB cache first
-    tax_table = dynamodb.Table(os.environ.get('TAX_RATES_TABLE', 'globalinvoiceai-TaxRates-dev'))
+    tax_table = dynamodb.Table(os.environ['TAX_RATES_TABLE'])
 
     try:
         response = tax_table.get_item(Key={'CountryRegion': f"{country}-{region}", 'TaxType': tax_type})
@@ -257,7 +257,7 @@ def detect_discrepancies(invoice: dict, expected_values: dict) -> dict:
 @tool
 def store_invoice_result(invoice_id: str, validation_result: dict) -> dict:
     """Store validated invoice in DynamoDB"""
-    invoices_table = dynamodb.Table(os.environ.get('INVOICES_TABLE', 'globalinvoiceai-Invoices-dev'))
+    invoices_table = dynamodb.Table(os.environ['INVOICES_TABLE'])
 
     try:
         invoices_table.update_item(

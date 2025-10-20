@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { Auth } from 'aws-amplify';
 
 // API service for GlobalInvoiceAI
 class ApiService {
@@ -9,7 +10,7 @@ class ApiService {
   // Get authentication headers
   async getAuthHeaders() {
     try {
-      const session = await window.Auth?.currentSession?.();
+      const session = await Auth.currentSession();
       if (session?.accessToken?.jwtToken) {
         return {
           'Authorization': `Bearer ${session.accessToken.jwtToken}`,

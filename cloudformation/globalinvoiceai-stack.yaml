@@ -466,6 +466,7 @@ Resources:
           TAX_RATES_TABLE: !Ref TaxRatesCache
           LOGS_TABLE: !Ref ProcessingLogsTable
           PROCESSED_BUCKET: !Ref ProcessedInvoicesBucket
+          PDF_GENERATOR_FUNCTION: !Ref PDFGeneratorFunction
           AGENTCORE_RUNTIME_PARAM: !Sub '/globalinvoiceai/agentcore/runtime-arn'
           ENVIRONMENT: !Ref Environment
       Code:
@@ -640,6 +641,199 @@ Resources:
         - Key: Application
           Value: GlobalInvoiceAI
 
+  # API Resources
+  InvoicesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: invoices
+
+  InvoiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref InvoicesResource
+      PathPart: '{invoiceId}'
+
+  StatsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref InvoicesResource
+      PathPart: stats
+
+  LogsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: logs
+
+  ConfigResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: config
+
+  MetricsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: metrics
+
+  # API Methods and Integrations
+  GetInvoicesMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref InvoicesResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+
+  PostInvoicesMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref InvoicesResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+
+  GetInvoiceMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref InvoiceResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      RequestParameters:
+        method.request.path.invoiceId: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+
+  GetInvoicePdfMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref InvoiceResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      RequestParameters:
+        method.request.path.invoiceId: true
+        method.request.querystring.format: false
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PDFGeneratorFunction.Arn}/invocations'
+
+  GetInvoicesStatsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref StatsResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+
+  GetLogsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref LogsResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+
+  GetConfigMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ConfigResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+
+  PutConfigMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ConfigResource
+      HttpMethod: PUT
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+
+  GetMetricsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref MetricsResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+
+  # API Gateway Authorizer
+  ApiGatewayAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      RestApiId: !Ref RestApi
+      Name: CognitoAuthorizer
+      Type: COGNITO_USER_POOLS
+      ProviderARNs:
+        - !GetAtt UserPool.Arn
+
+  # Lambda Permissions
+  ApiGatewayLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref InvoiceTriggerFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:apigateway:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/*/*'
+
+  PdfGeneratorLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PDFGeneratorFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:apigateway:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/*/*'
+
   ApiGatewayRootMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -656,6 +850,15 @@ Resources:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
       - ApiGatewayRootMethod
+      - GetInvoicesMethod
+      - PostInvoicesMethod
+      - GetInvoiceMethod
+      - GetInvoicePdfMethod
+      - GetInvoicesStatsMethod
+      - GetLogsMethod
+      - GetConfigMethod
+      - PutConfigMethod
+      - GetMetricsMethod
     Properties:
       RestApiId: !Ref RestApi
       StageName: !Ref Environment

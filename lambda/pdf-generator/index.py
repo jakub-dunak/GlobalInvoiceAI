@@ -14,7 +14,14 @@ dynamodb = boto3.resource('dynamodb')
 def handler(event, context):
     """Generate PDF invoice from validated invoice data"""
     try:
-        invoice_id = event['invoiceId']
+        # Handle API Gateway events
+        if 'httpMethod' in event:
+            invoice_id = event.get('pathParameters', {}).get('invoiceId')
+            if not invoice_id:
+                return {"statusCode": 400, "body": json.dumps({"error": "Missing invoiceId"})}
+        else:
+            # Direct Lambda invocation
+            invoice_id = event['invoiceId']
 
         # Get invoice data from DynamoDB
         invoices_table = dynamodb.Table(os.environ['INVOICES_TABLE'])
