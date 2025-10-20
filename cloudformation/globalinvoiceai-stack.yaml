@@ -617,7 +617,9 @@ Resources:
     Type: AWS::Cognito::UserPoolDomain
     Properties:
       UserPoolId: !Ref UserPool
-      Domain: !Sub '${CognitoDomainPrefix}-${Environment}-${AWS::AccountId}'
+      Domain: !Sub '${CognitoDomainPrefix}-${Environment}'
+    # Domain must be globally unique across all AWS accounts
+    # CognitoDomainPrefix is auto-generated to ensure uniqueness
 
   # ========================================
   # API GATEWAY
@@ -821,6 +823,12 @@ Outputs:
     Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${CloudWatchDashboard}'
     Export:
       Name: !Sub '${AWS::StackName}-CloudWatchDashboardUrl-${Environment}'
+
+  GlobalInvoiceAIAgentRepo:
+    Description: ECR repository URI for AgentCore Docker images
+    Value: !Sub '${AWS::Account}.dkr.ecr.${AWS::Region}.amazonaws.com/${GlobalInvoiceAIAgentRepo}'
+    Export:
+      Name: !Sub '${AWS::StackName}-GlobalInvoiceAIAgentRepo-${Environment}'
 
   AgentCoreRuntimeArn:
     Description: AgentCore Runtime ARN (stored in Parameter Store)
