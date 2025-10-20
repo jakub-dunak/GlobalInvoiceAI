@@ -11,6 +11,28 @@ import ControlPanel from './components/ControlPanel';
 import Navigation from './components/Navigation';
 import { apiService } from './utils/api';
 
+// Configure Amplify at module level (before component definition)
+Amplify.configure({
+  Auth: {
+    Cognito: {
+      userPoolId: process.env.REACT_APP_USER_POOL_ID || '',
+      userPoolClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID || '',
+      loginWith: {
+        email: true,
+      }
+    }
+  },
+  API: {
+    endpoints: [
+      {
+        name: 'GlobalInvoiceAI',
+        endpoint: process.env.REACT_APP_API_URL || 'https://your-api-gateway-url.execute-api.us-west-2.amazonaws.com/dev',
+        region: process.env.REACT_APP_REGION || 'us-west-2',
+      },
+    ],
+  },
+});
+
 function App({ signOut, user }) {
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -29,29 +51,6 @@ function App({ signOut, user }) {
     }
   };
 
-  // Configure Amplify
-  Amplify.configure({
-    Auth: {
-      region: process.env.REACT_APP_REGION || 'us-west-2',
-      userPoolId: process.env.REACT_APP_USER_POOL_ID,
-      userPoolWebClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID,
-      signInAliases: {
-        email: true,
-        username: false,
-        phone: false
-      }
-    },
-    API: {
-      endpoints: [
-        {
-          name: 'GlobalInvoiceAI',
-          endpoint: process.env.REACT_APP_API_URL || 'https://your-api-gateway-url.execute-api.us-west-2.amazonaws.com/dev',
-          region: process.env.REACT_APP_REGION || 'us-west-2',
-        },
-      ],
-    },
-  });
-
   return (
     <Router>
       <div className="App">
@@ -69,4 +68,6 @@ function App({ signOut, user }) {
   );
 }
 
-export default withAuthenticator(App);
+export default withAuthenticator(App, {
+  loginMechanisms: ['email'],
+});
