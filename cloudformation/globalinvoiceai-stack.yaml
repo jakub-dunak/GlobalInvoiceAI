@@ -583,19 +583,6 @@ Resources:
           RequireSymbols: false
       UsernameAttributes:
         - email
-      Schema:
-        - Name: email
-          AttributeDataType: String
-          Required: true
-          Mutable: true
-        - Name: given_name
-          AttributeDataType: String
-          Required: false
-          Mutable: true
-        - Name: family_name
-          AttributeDataType: String
-          Required: false
-          Mutable: true
 
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
