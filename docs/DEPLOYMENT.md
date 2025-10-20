@@ -119,13 +119,13 @@ If you prefer manual deployment:
 ```bash
 # 1. Create deployment bucket (or use existing)
 # The bucket name follows the pattern: globalinvoiceai-deployment-{region}-{environment}
-# Example: globalinvoiceai-deployment-us-east-1-dev
-aws s3 mb s3://globalinvoiceai-deployment-us-east-1-dev || echo "Bucket already exists"
+# Example: globalinvoiceai-deployment-us-west-2-dev
+aws s3 mb s3://globalinvoiceai-deployment-us-west-2-dev || echo "Bucket already exists"
 
 # 2. Package the CloudFormation template
 aws cloudformation package \
   --template-file cloudformation/globalinvoiceai-stack.yaml \
-  --s3-bucket globalinvoiceai-deployment-us-east-1-dev \
+  --s3-bucket globalinvoiceai-deployment-us-west-2-dev \
   --output-template-file packaged-template.yaml
 
 # 3. Deploy the stack

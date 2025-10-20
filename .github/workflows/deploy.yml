@@ -27,8 +27,7 @@ on:
           - staging
           - prod
 
-env:
-  AWS_REGION: us-east-1
+# Region is set per environment in .github/environments/
 
 # Required for OIDC authentication
 permissions:

@@ -11,8 +11,8 @@ on:
 
 # Environment-specific variables
 env:
-  AWS_REGION: us-east-1
-  ENVIRONMENT: dev
+AWS_REGION: us-west-2
+ENVIRONMENT: dev
 
 # Protection rules for development
 protection_rules:

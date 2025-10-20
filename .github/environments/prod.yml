@@ -8,8 +8,8 @@ on:
 
 # Environment-specific variables
 env:
-  AWS_REGION: us-east-1
-  ENVIRONMENT: prod
+AWS_REGION: us-west-2
+ENVIRONMENT: prod
 
 # Protection rules for production
 protection_rules:
