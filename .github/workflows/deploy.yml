@@ -40,6 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+    env:
+      AWS_REGION: us-west-2
     outputs:
       template-valid: ${{ steps.validate.outputs.valid }}
     steps:
