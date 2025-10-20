@@ -826,7 +826,7 @@ Outputs:
 
   GlobalInvoiceAIAgentRepo:
     Description: ECR repository URI for AgentCore Docker images
-    Value: !Sub '${AWS::Account}.dkr.ecr.${AWS::Region}.amazonaws.com/${GlobalInvoiceAIAgentRepo}'
+    Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${GlobalInvoiceAIAgentRepo}'
     Export:
       Name: !Sub '${AWS::StackName}-GlobalInvoiceAIAgentRepo-${Environment}'
 
