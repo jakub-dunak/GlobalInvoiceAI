@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Amplify } from 'aws-amplify';
+import { Amplify, Auth } from 'aws-amplify';
 import { withAuthenticator } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -35,6 +35,11 @@ function App({ signOut, user }) {
       region: process.env.REACT_APP_REGION || 'us-west-2',
       userPoolId: process.env.REACT_APP_USER_POOL_ID,
       userPoolWebClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID,
+      signInAliases: {
+        email: true,
+        username: false,
+        phone: false
+      }
     },
     API: {
       endpoints: [
