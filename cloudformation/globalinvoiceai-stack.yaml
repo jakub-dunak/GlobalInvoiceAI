@@ -568,8 +568,10 @@ Resources:
 
   UserPool:
     Type: AWS::Cognito::UserPool
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Delete
     Properties:
-      UserPoolName: !Sub '${AWS::StackName}-users-${Environment}'
+      UserPoolName: !Sub '${AWS::StackName}-users-${Environment}-v2'
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: false
       AutoVerifiedAttributes:
