@@ -15,15 +15,18 @@ import { apiService } from './utils/api';
 Amplify.configure({
   Auth: {
     Cognito: {
-      userPoolId: process.env.REACT_APP_USER_POOL_ID || '',
-      userPoolClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID || '',
+      userPoolId: process.env.REACT_APP_USER_POOL_ID,
+      userPoolClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID,
+      loginWith: {
+        email: true,
+      }
     }
   },
   API: {
     endpoints: [
       {
         name: 'GlobalInvoiceAI',
-        endpoint: process.env.REACT_APP_API_URL || 'https://your-api-gateway-url.execute-api.us-west-2.amazonaws.com/dev',
+        endpoint: process.env.REACT_APP_API_URL,
         region: process.env.REACT_APP_REGION || 'us-west-2',
       },
     ],
