@@ -180,33 +180,18 @@ jobs:
           STACK_NAME="globalinvoiceai-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
           echo "stack-name=${STACK_NAME}" >> $GITHUB_OUTPUT
 
-          # Generate unique Cognito domain prefix with validation
-          echo "🔄 Generating unique Cognito domain prefix..."
+          # Generate deterministic Cognito domain prefix
+          echo "🔄 Generating deterministic Cognito domain prefix..."
           ENVIRONMENT="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
-          BASE_PREFIX="globalinvoiceai-${ENVIRONMENT}"
+          REPO_NAME="GlobalInvoiceAI"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
-          # Check if base prefix is available
-          DOMAIN_CHECK=$(aws cognito-idp describe-user-pool-domain --domain ${BASE_PREFIX} --region ${{ env.AWS_REGION }} 2>/dev/null || echo "available")
+          # Create deterministic suffix based on account ID and repo name
+          DETERMINISTIC_SUFFIX=$(echo "${ACCOUNT_ID}${REPO_NAME}" | md5sum | head -c 8 | tr '[:upper:]' '[:lower:]')
+          COGNITO_PREFIX="globalinvoiceai-${ENVIRONMENT}-${DETERMINISTIC_SUFFIX}"
 
-          if [ "$DOMAIN_CHECK" = "available" ]; then
-            COGNITO_PREFIX="${BASE_PREFIX}"
-            echo "✅ Using available domain: ${COGNITO_PREFIX}"
-          else
-            echo "📝 Base domain taken, generating unique suffix..."
-            # Generate random suffix if base is taken
-            RANDOM_SUFFIX=$(echo $RANDOM | md5sum | head -c 6)
-            COGNITO_PREFIX="${BASE_PREFIX}-${RANDOM_SUFFIX}"
-            echo "🔄 Generated unique domain: ${COGNITO_PREFIX}"
-
-            # Validate uniqueness one more time
-            FINAL_CHECK=$(aws cognito-idp describe-user-pool-domain --domain ${COGNITO_PREFIX} --region ${{ env.AWS_REGION }} 2>/dev/null || echo "available")
-            if [ "$FINAL_CHECK" != "available" ]; then
-              echo "❌ Domain still not available, generating another suffix..."
-              RANDOM_SUFFIX=$(date +%s | tail -c 6)
-              COGNITO_PREFIX="${BASE_PREFIX}-${RANDOM_SUFFIX}"
-              echo "✅ Final domain: ${COGNITO_PREFIX}"
-            fi
-          fi
+          echo "✅ Using deterministic domain: ${COGNITO_PREFIX}"
+          echo "📝 Domain is deterministic based on account ID and repo name"
 
           echo "cognito-prefix=${COGNITO_PREFIX}" >> $GITHUB_OUTPUT
 
