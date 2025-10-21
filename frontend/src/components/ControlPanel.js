@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, Form, Button, Alert, Spinner, Row, Col } from 'react-bootstrap';
 import { FaCog, FaSave, FaUndo } from 'react-icons/fa';
 import { apiService } from '../utils/api';
@@ -20,11 +20,7 @@ const ControlPanel = () => {
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    loadConfiguration();
-  }, []);
-
-  const loadConfiguration = async () => {
+  const loadConfiguration = useCallback(async () => {
     try {
       setLoading(true);
       const configData = await apiService.getConfiguration();
@@ -37,7 +33,11 @@ const ControlPanel = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [config]);
+
+  useEffect(() => {
+    loadConfiguration();
+  }, [loadConfiguration]);
 
   const handleSave = async () => {
     try {

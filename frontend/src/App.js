@@ -9,7 +9,6 @@ import Dashboard from './components/Dashboard';
 import InvoiceList from './components/InvoiceList';
 import ControlPanel from './components/ControlPanel';
 import Navigation from './components/Navigation';
-import { apiService } from './utils/api';
 
 // Configure Amplify at module level (before component definition)
 Amplify.configure({

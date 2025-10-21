@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, Table, Button, Badge, Spinner, Alert, Modal, Form, Row, Col } from 'react-bootstrap';
 import { FaDownload, FaEye, FaFilter, FaUpload } from 'react-icons/fa';
 import { apiService } from '../utils/api';
@@ -14,11 +14,7 @@ const InvoiceList = () => {
   const [uploading, setUploading] = useState(false);
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    loadInvoices();
-  }, [filter]);
-
-  const loadInvoices = async () => {
+  const loadInvoices = useCallback(async () => {
     try {
       setLoading(true);
       const params = { limit: 100 };
@@ -35,7 +31,11 @@ const InvoiceList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
+
+  useEffect(() => {
+    loadInvoices();
+  }, [loadInvoices]);
 
   const handleViewInvoice = async (invoiceId) => {
     try {
