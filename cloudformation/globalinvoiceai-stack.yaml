@@ -890,6 +890,15 @@ Resources:
       EnableAutoBuild: false
       Stage: PRODUCTION
       Framework: React
+      EnvironmentVariables:
+        - Name: REACT_APP_API_URL
+          Value: !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+        - Name: REACT_APP_USER_POOL_ID
+          Value: !Ref UserPool
+        - Name: REACT_APP_USER_POOL_CLIENT_ID
+          Value: !Ref UserPoolClient
+        - Name: REACT_APP_REGION
+          Value: !Ref AWS::Region
 
   # ========================================
   # CLOUDWATCH DASHBOARD
