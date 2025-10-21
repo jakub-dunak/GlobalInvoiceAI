@@ -884,22 +884,12 @@ Resources:
 
   AmplifyBranch:
     Type: AWS::Amplify::Branch
+    DependsOn: AmplifyApp
     Properties:
       AppId: !Ref AmplifyApp
       BranchName: main
-      # Manual deployment - no auto-build triggers, artifacts deployed via bucket
       EnableAutoBuild: false
-      # Bucket deployment configuration
-      Stage: PRODUCTION
-      EnvironmentVariables:
-        - Name: REACT_APP_API_URL
-          Value: !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
-        - Name: REACT_APP_USER_POOL_ID
-          Value: !Ref UserPool
-        - Name: REACT_APP_USER_POOL_CLIENT_ID
-          Value: !Ref UserPoolClient
-        - Name: REACT_APP_REGION
-          Value: !Ref AWS::Region
+      Framework: React
       Tags:
         - Key: Environment
           Value: !Ref Environment
