@@ -2,6 +2,7 @@ import React from 'react';
 import { Navbar, Nav, Container } from 'react-bootstrap';
 import { Link, useLocation } from 'react-router-dom';
 import { FaSignOutAlt, FaUser } from 'react-icons/fa';
+import { useAuthenticator } from '@aws-amplify/ui-react';
 
 // Check if we have valid Cognito configuration
 let hasValidCognitoConfig = false;
@@ -14,9 +15,29 @@ try {
   hasValidCognitoConfig = process.env.REACT_APP_USER_POOL_ID && process.env.REACT_APP_USER_POOL_CLIENT_ID;
 }
 
-// Authenticated navigation component (only rendered when Cognito is configured)
-const AuthenticatedNavigation = () => {
-  const { useAuthenticator } = require('@aws-amplify/ui-react');
+// Development navigation component (only rendered when Cognito is not configured)
+const DevelopmentNavigation = () => {
+  return (
+    <Navbar.Text className="me-3">
+      <FaUser className="me-1" />
+      Development Mode
+    </Navbar.Text>
+  );
+};
+
+// Authenticated navigation wrapper component (handles authentication state)
+const AuthenticatedNavigationWrapper = () => {
+  const { authStatus } = useAuthenticator((context) => [context.authStatus]);
+
+  if (authStatus === 'authenticated') {
+    return <AuthenticatedNavigationContent />;
+  }
+
+  return null;
+};
+
+// Authenticated navigation content (only rendered when user is authenticated)
+const AuthenticatedNavigationContent = () => {
   const { user, signOut } = useAuthenticator((context) => [context.user, context.signOut]);
 
   return (
@@ -33,19 +54,21 @@ const AuthenticatedNavigation = () => {
   );
 };
 
-// Development navigation component (only rendered when Cognito is not configured)
-const DevelopmentNavigation = () => {
-  return (
-    <Navbar.Text className="me-3">
-      <FaUser className="me-1" />
-      Development Mode
-    </Navbar.Text>
-  );
-};
-
 // Main navigation component
 const Navigation = () => {
   const location = useLocation();
+
+  // Determine what to show in the navigation
+  const renderNavigationContent = () => {
+    if (!hasValidCognitoConfig) {
+      // Development mode - no Cognito configured
+      return <DevelopmentNavigation />;
+    }
+
+    // When Cognito is configured, use the authenticated navigation wrapper
+    // This component will only render when user is authenticated
+    return <AuthenticatedNavigationWrapper />;
+  };
 
   return (
     <Navbar bg="dark" variant="dark" expand="lg">
@@ -82,7 +105,7 @@ const Navigation = () => {
           </Nav>
 
           <Nav className="ms-auto">
-            {hasValidCognitoConfig ? <AuthenticatedNavigation /> : <DevelopmentNavigation />}
+            {renderNavigationContent()}
           </Nav>
         </Navbar.Collapse>
       </Container>
