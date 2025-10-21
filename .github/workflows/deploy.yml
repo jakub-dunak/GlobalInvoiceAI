@@ -92,6 +92,11 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/personal-github-oidc-role
           aws-region: us-west-2
 
+      - name: Get AWS account ID
+        id: aws-account
+        run: |
+          echo "account-id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
+
       - name: Setup S3 bucket for deployment artifacts
         run: |
           ENVIRONMENT="${{ env.ENVIRONMENT }}"
@@ -324,6 +329,11 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/personal-github-oidc-role
           aws-region: us-west-2
 
+      - name: Get AWS account ID
+        id: aws-account
+        run: |
+          echo "account-id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -388,14 +398,13 @@ jobs:
       - name: Clean up deployment artifacts
         run: |
           # Clean up Lambda function ZIP files from deployment bucket
-          if [ ! -z "${{ env.DEPLOYMENT_BUCKET }}" ]; then
-            ENVIRONMENT="${{ env.ENVIRONMENT }}"
+          ENVIRONMENT="${{ env.ENVIRONMENT }}"
+          BUCKET_NAME="globalinvoiceai-deployment-us-west-2-${ENVIRONMENT}"
 
-            # Remove Lambda function ZIP files
-            aws s3 rm s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/invoice-trigger-${ENVIRONMENT}.zip || true
-            aws s3 rm s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/pdf-generator-${ENVIRONMENT}.zip || true
-            aws s3 rm s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/agentcore-deploy-${ENVIRONMENT}.zip || true
-          fi
+          # Remove Lambda function ZIP files
+          aws s3 rm s3://${BUCKET_NAME}/lambda/invoice-trigger-${ENVIRONMENT}.zip || true
+          aws s3 rm s3://${BUCKET_NAME}/lambda/pdf-generator-${ENVIRONMENT}.zip || true
+          aws s3 rm s3://${BUCKET_NAME}/lambda/agentcore-deploy-${ENVIRONMENT}.zip || true
 
   notify:
     name: Deployment Notification
