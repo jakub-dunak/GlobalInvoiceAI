@@ -384,6 +384,55 @@ jobs:
 
           echo "Frontend build also archived to s3://${DEPLOYMENT_BUCKET}/frontend/"
 
+      - name: Trigger Amplify deployment
+        run: |
+          ENVIRONMENT="${{ env.ENVIRONMENT }}"
+          STACK_NAME="globalinvoiceai-${ENVIRONMENT}"
+
+          # Get Amplify App ID from stack outputs
+          AMPLIFY_APP_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${STACK_NAME} \
+            --region us-west-2 \
+            --query 'Stacks[0].Outputs[?OutputKey==`AmplifyAppId`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$AMPLIFY_APP_ID" ] || [ "$AMPLIFY_APP_ID" = "None" ]; then
+            echo "Could not find Amplify App ID in stack outputs"
+            exit 1
+          fi
+
+          # Get the Amplify source bucket name
+          AMPLIFY_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name ${STACK_NAME} \
+            --region us-west-2 \
+            --query 'Stacks[0].Outputs[?OutputKey==`AmplifySourceBucketName`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$AMPLIFY_BUCKET" ] || [ "$AMPLIFY_BUCKET" = "None" ]; then
+            # Fallback to constructed bucket name
+            AMPLIFY_BUCKET="${STACK_NAME}-amplify-source-${ENVIRONMENT}"
+          fi
+
+          echo "Triggering Amplify deployment..."
+          echo "App ID: ${AMPLIFY_APP_ID}"
+          echo "Branch: ${ENVIRONMENT}"
+          echo "Source: s3://${AMPLIFY_BUCKET}/frontend/"
+
+          # Trigger deployment using the frontend prefix
+          aws amplify start-deployment \
+            --app-id ${AMPLIFY_APP_ID} \
+            --branch-name ${ENVIRONMENT} \
+            --source-url s3://${AMPLIFY_BUCKET}/frontend/ \
+            --source-url-type BUCKET_PREFIX \
+            --region us-west-2
+
+          if [ $? -eq 0 ]; then
+            echo "✅ Amplify deployment triggered successfully"
+          else
+            echo "❌ Failed to trigger Amplify deployment"
+            exit 1
+          fi
+
   build-agentcore:
     name: Build and Deploy AgentCore Application
     runs-on: ubuntu-latest
