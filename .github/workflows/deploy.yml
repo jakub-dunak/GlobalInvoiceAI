@@ -190,9 +190,9 @@ jobs:
 
           # Create deterministic suffix based on account ID and repo name
           DETERMINISTIC_SUFFIX=$(echo "${{ steps.aws-account.outputs.account-id }}${REPO_NAME}" | md5sum | head -c 8 | tr '[:upper:]' '[:lower:]')
-          COGNITO_PREFIX="globalinvoiceai-${ENVIRONMENT}-${DETERMINISTIC_SUFFIX}"
+          COGNITO_PREFIX="globalinvoiceai-${DETERMINISTIC_SUFFIX}"
 
-          echo "Using Cognito domain: ${COGNITO_PREFIX}"
+          echo "Using Cognito domain: ${COGNITO_PREFIX}-${ENVIRONMENT}"
 
           echo "cognito-prefix=${COGNITO_PREFIX}" >> $GITHUB_OUTPUT
 

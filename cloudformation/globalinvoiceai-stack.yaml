@@ -608,12 +608,14 @@ Resources:
 
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
+    UpdateReplacePolicy: Replace
+    DeletionPolicy: Retain
     Properties:
       UserPoolId: !Ref UserPool
       Domain: !Sub '${CognitoDomainPrefix}-${Environment}'
     # IMPORTANT: Domain must be globally unique and deterministic
     # CognitoDomainPrefix is generated deterministically in CI/CD to ensure
-    # the same domain is used across deployments (domains cannot be updated)
+    # the same domain is used across deployments (domains cannot be updated in-place)
 
   # ========================================
   # API GATEWAY
