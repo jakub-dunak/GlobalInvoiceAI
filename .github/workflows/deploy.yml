@@ -340,6 +340,19 @@ jobs:
         working-directory: frontend
         run: npm install
 
+      - name: Get AWS region programmatically
+        id: get-region
+        run: |
+          # Get the region programmatically from AWS
+          AWS_REGION=$(aws ec2 describe-availability-zones --query 'AvailabilityZones[0].RegionName' --output text)
+          echo "region=$AWS_REGION" >> $GITHUB_OUTPUT
+          echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
+
+      - name: Configure frontend with Cognito values
+        working-directory: frontend
+        run: |
+          node ../scripts/configure-frontend.js "${{ steps.stack-outputs.outputs.user-pool-id }}" "${{ steps.stack-outputs.outputs.user-pool-client-id }}" "${{ steps.get-region.outputs.region }}" "${{ env.ENVIRONMENT }}"
+
       - name: Build frontend
         working-directory: frontend
         run: npm run build

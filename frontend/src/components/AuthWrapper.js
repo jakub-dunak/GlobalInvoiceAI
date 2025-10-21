@@ -9,7 +9,15 @@ import {
 } from '@aws-amplify/ui-react';
 
 // Check if we have valid Cognito configuration for authentication
-const hasValidCognitoConfig = process.env.REACT_APP_USER_POOL_ID && process.env.REACT_APP_USER_POOL_CLIENT_ID;
+let hasValidCognitoConfig = false;
+
+try {
+  const awsExports = require('../aws-exports').default;
+  hasValidCognitoConfig = awsExports.aws_user_pools_id && awsExports.aws_user_pools_web_client_id;
+} catch (error) {
+  // Fallback to environment variables for local development
+  hasValidCognitoConfig = process.env.REACT_APP_USER_POOL_ID && process.env.REACT_APP_USER_POOL_CLIENT_ID;
+}
 
 // Custom theme for Amplify Authenticator
 const authTheme = {

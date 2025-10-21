@@ -4,6 +4,9 @@ import { Amplify } from 'aws-amplify';
 import '@aws-amplify/ui-react/styles.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
+// Import AWS configuration (generated during deployment)
+import awsconfig from './aws-exports';
+
 import Dashboard from './components/Dashboard';
 import InvoiceList from './components/InvoiceList';
 import ControlPanel from './components/ControlPanel';
@@ -11,26 +14,7 @@ import Navigation from './components/Navigation';
 import AuthWrapper from './components/AuthWrapper';
 
 // Configure Amplify at module level (before component definition)
-Amplify.configure({
-  Auth: {
-    Cognito: {
-      userPoolId: process.env.REACT_APP_USER_POOL_ID,
-      userPoolClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID,
-      loginWith: {
-        email: true,
-      }
-    }
-  },
-  API: {
-    endpoints: [
-      {
-        name: 'GlobalInvoiceAI',
-        endpoint: process.env.REACT_APP_API_URL,
-        region: process.env.REACT_APP_REGION || 'us-west-2',
-      },
-    ],
-  },
-});
+Amplify.configure(awsconfig);
 
 function App() {
   return (
