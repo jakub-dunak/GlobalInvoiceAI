@@ -848,25 +848,23 @@ Resources:
     Type: AWS::Amplify::App
     Properties:
       Name: !Sub '${AWS::StackName}-ui-${Environment}'
-      # Repository connection configured via bucket strategy - artifacts stored in S3
-      # BuildSpec will be overridden by repository settings when connected
+      # Bucket deployment strategy - no repository connection, artifacts uploaded manually
       BuildSpec: |
         version: 1
         frontend:
           phases:
             preBuild:
               commands:
-                - npm ci
+                - echo "Bucket deployment - artifacts already built and uploaded"
             build:
               commands:
-                - npm run build
+                - echo "No build needed - using pre-built artifacts from S3 bucket"
           artifacts:
-            baseDirectory: build
+            baseDirectory: frontend
             files:
               - '**/*'
           cache:
-            paths:
-              - node_modules/**/*
+            paths: []
       EnvironmentVariables:
         - Name: REACT_APP_API_URL
           Value: !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
@@ -876,8 +874,32 @@ Resources:
           Value: !Ref UserPoolClient
         - Name: REACT_APP_REGION
           Value: !Ref AWS::Region
-        - Name: _CUSTOM_BUILD_COMMAND
-          Value: echo "Using bucket strategy - connect repository in Amplify Console for automatic builds"
+        - Name: _DEPLOYMENT_STRATEGY
+          Value: bucket
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: GlobalInvoiceAI
+
+  AmplifyBranch:
+    Type: AWS::Amplify::Branch
+    Properties:
+      AppId: !Ref AmplifyApp
+      BranchName: main
+      # Manual deployment - no auto-build triggers, artifacts deployed via bucket
+      EnableAutoBuild: false
+      # Bucket deployment configuration
+      Stage: PRODUCTION
+      EnvironmentVariables:
+        - Name: REACT_APP_API_URL
+          Value: !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+        - Name: REACT_APP_USER_POOL_ID
+          Value: !Ref UserPool
+        - Name: REACT_APP_USER_POOL_CLIENT_ID
+          Value: !Ref UserPoolClient
+        - Name: REACT_APP_REGION
+          Value: !Ref AWS::Region
       Tags:
         - Key: Environment
           Value: !Ref Environment
