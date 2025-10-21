@@ -98,6 +98,26 @@ Resources:
         - Key: Application
           Value: GlobalInvoiceAI
 
+  AmplifySourceBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AmplifySourceBucket
+      PolicyDocument:
+        Statement:
+          - Sid: AllowAmplifyDeploymentAccess
+            Effect: Allow
+            Principal:
+              Service: amplify.amazonaws.com
+            Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !GetAtt AmplifySourceBucket.Arn
+              - !Sub '${AmplifySourceBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                aws:SourceArn: !GetAtt AmplifyApp.Arn
+
   # ========================================
   # DYNAMODB TABLES
   # ========================================
