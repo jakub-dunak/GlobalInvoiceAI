@@ -904,17 +904,12 @@ Resources:
 
   AmplifyBranch:
     Type: AWS::Amplify::Branch
-    DependsOn: AmplifyApp
     Properties:
-      AppId: !Ref AmplifyApp
-      BranchName: main
+      AppId: !GetAtt AmplifyApp.AppId
+      BranchName: !Sub '${Environment}'
       EnableAutoBuild: false
+      Stage: PRODUCTION
       Framework: React
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Application
-          Value: GlobalInvoiceAI
 
   # ========================================
   # CLOUDWATCH DASHBOARD
