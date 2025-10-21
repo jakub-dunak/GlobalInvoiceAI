@@ -66,6 +66,12 @@ jobs:
     if: needs.validate.outputs.template-valid == 'true'
     environment:
       name: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+    outputs:
+      user-pool-id: ${{ steps.stack-outputs.outputs.user-pool-id }}
+      user-pool-client-id: ${{ steps.stack-outputs.outputs.user-pool-client-id }}
+      amplify-url: ${{ steps.stack-outputs.outputs.amplify-url }}
+      api-gateway-url: ${{ steps.stack-outputs.outputs.api-gateway-url }}
+      invoice-bucket: ${{ steps.stack-outputs.outputs.invoice-bucket }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -325,6 +331,9 @@ jobs:
       name: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
     needs: package-and-deploy
     if: needs.validate.outputs.template-valid == 'true'
+    env:
+      ENVIRONMENT: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+      AWS_REGION: us-west-2
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
