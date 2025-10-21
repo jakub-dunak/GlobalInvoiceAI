@@ -29,8 +29,6 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
-    env:
-      AWS_REGION: us-west-2
     outputs:
       template-valid: ${{ steps.validate.outputs.valid }}
     steps:
@@ -323,6 +321,8 @@ jobs:
   build-frontend:
     name: Build Frontend Application
     runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
     needs: package-and-deploy
     if: needs.validate.outputs.template-valid == 'true'
     steps:
@@ -340,18 +340,10 @@ jobs:
         working-directory: frontend
         run: npm install
 
-      - name: Get AWS region programmatically
-        id: get-region
-        run: |
-          # Get the region programmatically from AWS
-          AWS_REGION=$(aws ec2 describe-availability-zones --query 'AvailabilityZones[0].RegionName' --output text)
-          echo "region=$AWS_REGION" >> $GITHUB_OUTPUT
-          echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
-
       - name: Configure frontend with Cognito values
         working-directory: frontend
         run: |
-          node ../scripts/configure-frontend.js "${{ steps.stack-outputs.outputs.user-pool-id }}" "${{ steps.stack-outputs.outputs.user-pool-client-id }}" "${{ steps.get-region.outputs.region }}" "${{ env.ENVIRONMENT }}"
+          node ../scripts/configure-frontend.js "${{ steps.stack-outputs.outputs.user-pool-id }}" "${{ steps.stack-outputs.outputs.user-pool-client-id }}" "${{ env.AWS_REGION }}" "${{ env.ENVIRONMENT }}"
 
       - name: Build frontend
         working-directory: frontend
