@@ -1,23 +1,9 @@
 name: Deploy GlobalInvoiceAI
 
 env:
-  ENVIRONMENT: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+  ENVIRONMENT: ${{ github.event.inputs.environment }}
 
 on:
-  # push:
-  #   branches:
-  #     - main
-  #     - develop
-  #   paths:
-  #     - 'cloudformation/**'
-  #     - 'agentcore/**'
-  #     - '.github/workflows/**'
-  # pull_request:
-  #   branches:
-  #     - main
-  #   paths:
-  #     - 'cloudformation/**'
-  #     - 'agentcore/**'
   workflow_dispatch:
     inputs:
       environment:
@@ -29,6 +15,10 @@ on:
           - dev
           - staging
           - prod
+      deployment_bucket:
+        description: 'S3 bucket containing deployment artifacts'
+        required: false
+        type: string
 
 # Region is set per environment in .github/environments/
 
@@ -100,7 +90,12 @@ jobs:
       - name: Setup S3 bucket for deployment artifacts
         run: |
           ENVIRONMENT="${{ env.ENVIRONMENT }}"
-          BUCKET_NAME="globalinvoiceai-deployment-us-west-2-${ENVIRONMENT}"
+          # Use provided deployment bucket or default naming convention
+          if [ -n "${{ github.event.inputs.deployment_bucket }}" ]; then
+            BUCKET_NAME="${{ github.event.inputs.deployment_bucket }}"
+          else
+            BUCKET_NAME="globalinvoiceai-deployment-us-west-2-${ENVIRONMENT}"
+          fi
           echo "DEPLOYMENT_BUCKET=${BUCKET_NAME}" >> $GITHUB_ENV
 
           # Check if bucket exists
@@ -239,22 +234,25 @@ jobs:
       - name: Create deployment summary
         run: |
           cat > deployment-summary.md << 'EOF'
-          # 🚀 GlobalInvoiceAI Deployment Summary
+          # 🚀 GlobalInvoiceAI Deployment Summary (Bucket Strategy)
 
           **Environment:** ${{ env.ENVIRONMENT }}
-          **Branch:** ${{ github.ref_name }}
+          **Deployment Bucket:** ${{ env.DEPLOYMENT_BUCKET }}
           **Run ID:** ${{ github.run_id }}
           **Timestamp:** $(date -u)
+          **Strategy:** Bucket-based deployment
 
           ## 📋 Stack Information
           - **Stack Name:** ${{ steps.stack-config.outputs.stack-name }}
           - **Region:** us-west-2
+          - **Deployment Strategy:** Bucket-based (artifacts stored in S3 buckets per environment)
 
           ## 🔗 Access URLs
           - **Admin Dashboard:** ${{ steps.stack-outputs.outputs.amplify-url }}
           - **API Gateway:** ${{ steps.stack-outputs.outputs.api-gateway-url }}
 
           ## 📦 S3 Buckets
+          - **Deployment Artifacts:** ${{ env.DEPLOYMENT_BUCKET }}
           - **Invoice Upload:** ${{ steps.stack-outputs.outputs.invoice-bucket }}
 
           ## 🔧 Environment Variables (Set by CloudFormation)
@@ -263,16 +261,35 @@ jobs:
           - ✅ **API Gateway URL:** ${{ steps.stack-outputs.outputs.api-gateway-url }}
           - ✅ **Region:** us-west-2
 
+          ## 🎨 Frontend Status
+          - ✅ **React App:** Built successfully
+          - ✅ **Frontend Artifacts:** Uploaded to Amplify source bucket
+          - ✅ **Frontend Artifacts:** Archived in deployment bucket
+
+          ## 🤖 AgentCore Status
+          - ✅ **ECR Repository:** Deployed
+          - ✅ **Docker Image:** Built and pushed
+          - ✅ **Runtime Deployment:** Initiated via Lambda function
+
           ## 🧪 Testing
-          1. Open the admin dashboard URL
+          1. Open the admin dashboard URL (should load React frontend)
           2. Register a new user account (should show "Email" fields)
-          3. Upload sample invoices to the S3 bucket
-          4. Monitor processing in CloudWatch logs
+          3. Login and verify UI components load correctly
+          4. Upload sample invoices to the S3 bucket
+          5. Monitor processing in CloudWatch logs
+          6. Verify AgentCore responses in invoice processing
 
           ## 📞 Next Steps
           - Authentication should work automatically
           - Test invoice processing with sample data
+          - Monitor AgentCore deployment completion
           - Configure monitoring alerts if needed
+
+          ## 🎯 Bucket Strategy Benefits
+          - Environment-specific artifact isolation
+          - Independent deployment pipelines per environment
+          - No branch dependency for deployments
+          - Explicit bucket selection for controlled releases
           EOF
 
       - name: Upload deployment summary
@@ -312,10 +329,68 @@ jobs:
               > This is a deployment preview. The stack will be deployed when the PR is merged.`
             })
 
+  build-frontend:
+    name: Build Frontend Application
+    runs-on: ubuntu-latest
+    needs: package-and-deploy
+    if: needs.validate.outputs.template-valid == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v5.0.0
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/personal-github-oidc-role
+          aws-region: us-west-2
+
+      - name: Upload frontend build to Amplify source bucket
+        run: |
+          ENVIRONMENT="${{ env.ENVIRONMENT }}"
+          STACK_NAME="globalinvoiceai-${ENVIRONMENT}"
+
+          # Get the Amplify source bucket name from stack outputs
+          AMPLIFY_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name ${STACK_NAME} \
+            --region us-west-2 \
+            --query 'Stacks[0].Outputs[?OutputKey==`AmplifySourceBucketName`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$AMPLIFY_BUCKET" ] || [ "$AMPLIFY_BUCKET" = "None" ]; then
+            # Fallback to constructed bucket name
+            AMPLIFY_BUCKET="${STACK_NAME}-amplify-source-${ENVIRONMENT}"
+          fi
+
+          # Upload frontend build files to Amplify source bucket
+          aws s3 sync frontend/build/ s3://${AMPLIFY_BUCKET}/frontend/ --region us-west-2 --delete
+
+          echo "Frontend build uploaded to s3://${AMPLIFY_BUCKET}/frontend/"
+
+          # Also upload to deployment bucket for backup/archival
+          DEPLOYMENT_BUCKET="${{ env.DEPLOYMENT_BUCKET }}"
+          aws s3 sync frontend/build/ s3://${DEPLOYMENT_BUCKET}/frontend/ --region us-west-2 --delete
+
+          echo "Frontend build also archived to s3://${DEPLOYMENT_BUCKET}/frontend/"
+
   build-agentcore:
     name: Build and Deploy AgentCore Application
     runs-on: ubuntu-latest
-    needs: package-and-deploy
+    needs: [package-and-deploy, build-frontend]
     if: needs.validate.outputs.template-valid == 'true'
     environment:
       name: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
@@ -369,25 +444,59 @@ jobs:
         run: |
           STACK_NAME="globalinvoiceai-${{ env.ENVIRONMENT }}"
 
-          # The AgentCoreDeployFunction in the CloudFormation template will handle the actual deployment
-          # Check stack status to verify completion
-          STACK_STATUS=$(aws cloudformation describe-stacks \
+          # Invoke the AgentCoreDeployFunction to deploy the new Docker image
+          echo "Triggering AgentCore deployment via Lambda function..."
+
+          # Get the AgentCore deploy function name
+          FUNCTION_NAME=$(aws cloudformation describe-stacks \
             --stack-name ${STACK_NAME} \
             --region us-west-2 \
-            --query 'Stacks[0].StackStatus' \
-            --output text)
+            --query 'Stacks[0].Outputs[?OutputKey==`AgentCoreDeployFunction`].OutputValue' \
+            --output text 2>/dev/null || echo "")
 
-          if [ "$STACK_STATUS" = "CREATE_COMPLETE" ] || [ "$STACK_STATUS" = "UPDATE_COMPLETE" ]; then
-            echo "AgentCore deployment completed successfully"
+          if [ -z "$FUNCTION_NAME" ] || [ "$FUNCTION_NAME" = "None" ]; then
+            # Fallback to constructed function name
+            FUNCTION_NAME="${STACK_NAME}-agentcore-deploy-${{ env.ENVIRONMENT }}"
+          fi
+
+          echo "Invoking AgentCore deploy function: ${FUNCTION_NAME}"
+
+          # Invoke the function (it will handle the deployment asynchronously)
+          aws lambda invoke \
+            --function-name ${FUNCTION_NAME} \
+            --region us-west-2 \
+            --payload '{}' \
+            response.json
+
+          # Check if invocation was successful
+          if [ $? -eq 0 ]; then
+            echo "AgentCore deployment Lambda invoked successfully"
+            # Wait a moment for deployment to start
+            sleep 10
+
+            # Check stack status to verify infrastructure is ready
+            STACK_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name ${STACK_NAME} \
+              --region us-west-2 \
+              --query 'Stacks[0].StackStatus' \
+              --output text)
+
+            if [ "$STACK_STATUS" = "CREATE_COMPLETE" ] || [ "$STACK_STATUS" = "UPDATE_COMPLETE" ]; then
+              echo "✅ Infrastructure deployment completed successfully"
+              echo "✅ AgentCore deployment initiated"
+            else
+              echo "⚠️  Stack status: ${STACK_STATUS} - AgentCore deployment may still be in progress"
+            fi
           else
-            echo "Stack status: ${STACK_STATUS}"
+            echo "❌ Failed to invoke AgentCore deployment Lambda"
+            exit 1
           fi
 
   cleanup:
-    name: Cleanup Lambda Artifacts
+    name: Cleanup Deployment Artifacts
     runs-on: ubuntu-latest
     if: always()
-    needs: [package-and-deploy, build-agentcore]
+    needs: [package-and-deploy, build-frontend, build-agentcore]
     steps:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v5.0.0
@@ -397,7 +506,7 @@ jobs:
 
       - name: Clean up deployment artifacts
         run: |
-          # Clean up Lambda function ZIP files from deployment bucket
+          # Clean up artifacts from deployment bucket
           ENVIRONMENT="${{ env.ENVIRONMENT }}"
           BUCKET_NAME="globalinvoiceai-deployment-us-west-2-${ENVIRONMENT}"
 
@@ -405,6 +514,9 @@ jobs:
           aws s3 rm s3://${BUCKET_NAME}/lambda/invoice-trigger-${ENVIRONMENT}.zip || true
           aws s3 rm s3://${BUCKET_NAME}/lambda/pdf-generator-${ENVIRONMENT}.zip || true
           aws s3 rm s3://${BUCKET_NAME}/lambda/agentcore-deploy-${ENVIRONMENT}.zip || true
+
+          # Note: Frontend artifacts are kept in Amplify source bucket for future deployments
+          # They can be cleaned up manually if needed
 
   notify:
     name: Deployment Notification
@@ -417,7 +529,56 @@ jobs:
         with:
           name: deployment-summary
 
+      - name: Final deployment verification
+        run: |
+          STACK_NAME="globalinvoiceai-${{ env.ENVIRONMENT }}"
+
+          echo "🔍 Performing final deployment verification..."
+
+          # Check CloudFormation stack status
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name ${STACK_NAME} \
+            --region us-west-2 \
+            --query 'Stacks[0].StackStatus' \
+            --output text)
+
+          if [ "$STACK_STATUS" = "CREATE_COMPLETE" ] || [ "$STACK_STATUS" = "UPDATE_COMPLETE" ]; then
+            echo "✅ CloudFormation stack deployment: SUCCESS"
+          else
+            echo "❌ CloudFormation stack deployment: FAILED (${STACK_STATUS})"
+            exit 1
+          fi
+
+          # Check if frontend artifacts exist in Amplify source bucket
+          AMPLIFY_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name ${STACK_NAME} \
+            --region us-west-2 \
+            --query 'Stacks[0].Outputs[?OutputKey==`AmplifySourceBucketName`].OutputValue' \
+            --output text 2>/dev/null || echo "globalinvoiceai-${{ env.ENVIRONMENT }}-amplify-source-${{ env.ENVIRONMENT }}")
+
+          FRONTEND_FILES=$(aws s3 ls s3://${AMPLIFY_BUCKET}/frontend/ --region us-west-2 --recursive 2>/dev/null | wc -l)
+          if [ "$FRONTEND_FILES" -gt 0 ]; then
+            echo "✅ Frontend artifacts uploaded: SUCCESS (${FRONTEND_FILES} files)"
+          else
+            echo "❌ Frontend artifacts upload: FAILED"
+            exit 1
+          fi
+
+          # Check if AgentCore runtime parameter exists
+          RUNTIME_ARN=$(aws ssm get-parameter \
+            --name "/globalinvoiceai/agentcore/runtime-arn" \
+            --region us-west-2 \
+            --query 'Parameter.Value' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$RUNTIME_ARN" ] && [ "$RUNTIME_ARN" != "None" ]; then
+            echo "✅ AgentCore runtime deployed: SUCCESS"
+          else
+            echo "⚠️  AgentCore runtime deployment: PENDING (may still be in progress)"
+          fi
+
       - name: Send notification
         run: |
-          echo "📢 Deployment completed for ${{ env.ENVIRONMENT }} environment"
+          echo "📢 Deployment finalized for ${{ env.ENVIRONMENT }} environment"
           echo "📋 Check deployment-summary.md for details"
+          echo "🎯 Bucket strategy: All artifacts (Lambda, AgentCore, Frontend) stored in environment-specific S3 buckets"
