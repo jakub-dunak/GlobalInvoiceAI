@@ -62,9 +62,21 @@ const ControlPanel = () => {
   };
 
   const handleInputChange = (field, value) => {
+    let processedValue = value;
+
+    // Validate and process numeric inputs
+    if (['autoApprovalThreshold', 'maxProcessingTime', 'maxRetries'].includes(field)) {
+      const numValue = parseInt(value);
+      if (isNaN(numValue) || numValue < 0) {
+        // Keep the previous value if invalid
+        return;
+      }
+      processedValue = numValue;
+    }
+
     setConfig(prev => ({
       ...prev,
-      [field]: value
+      [field]: processedValue
     }));
   };
 

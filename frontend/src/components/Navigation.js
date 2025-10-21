@@ -3,7 +3,7 @@ import { Navbar, Nav, Container } from 'react-bootstrap';
 import { Link, useLocation } from 'react-router-dom';
 import { FaSignOutAlt, FaUser } from 'react-icons/fa';
 
-const Navigation = ({ user, onSignOut }) => {
+const Navigation = ({ user = null, onSignOut = () => {} }) => {
   const location = useLocation();
 
   return (

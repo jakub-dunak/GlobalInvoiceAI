@@ -1,5 +1,8 @@
 name: Deploy GlobalInvoiceAI
 
+env:
+  ENVIRONMENT: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+
 on:
   # push:
   #   branches:
@@ -54,15 +57,18 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/personal-github-oidc-role
           aws-region: us-west-2
 
+      - name: Get AWS account ID
+        id: aws-account
+        run: |
+          echo "account-id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
+
       - name: Validate CloudFormation template
         id: validate
         run: |
-          echo "Validating CloudFormation template..."
           if aws cloudformation validate-template \
             --template-body file://cloudformation/globalinvoiceai-stack.yaml \
             --region us-west-2; then
             echo "valid=true" >> $GITHUB_OUTPUT
-            echo "✅ CloudFormation template is valid"
           else
             echo "valid=false" >> $GITHUB_OUTPUT
             echo "❌ CloudFormation template validation failed"
@@ -88,26 +94,24 @@ jobs:
 
       - name: Setup S3 bucket for deployment artifacts
         run: |
-          ENVIRONMENT="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+          ENVIRONMENT="${{ env.ENVIRONMENT }}"
           BUCKET_NAME="globalinvoiceai-deployment-us-west-2-${ENVIRONMENT}"
           echo "DEPLOYMENT_BUCKET=${BUCKET_NAME}" >> $GITHUB_ENV
 
           # Check if bucket exists
           if aws s3 ls s3://${BUCKET_NAME} --region us-west-2 2>/dev/null; then
-            echo "✅ Using existing deployment bucket: ${BUCKET_NAME}"
+            echo "Using existing deployment bucket: ${BUCKET_NAME}"
           else
-            echo "📦 Creating new deployment bucket: ${BUCKET_NAME}"
             if aws s3 mb s3://${BUCKET_NAME} --region us-west-2; then
-              echo "✅ Created deployment bucket: ${BUCKET_NAME}"
+              echo "Created deployment bucket: ${BUCKET_NAME}"
             else
-              echo "❌ Failed to create deployment bucket"
+              echo "Failed to create deployment bucket"
               exit 1
             fi
           fi
 
       - name: Package CloudFormation template
         run: |
-          echo "📦 Packaging CloudFormation template..."
           aws cloudformation package \
             --template-file cloudformation/globalinvoiceai-stack.yaml \
             --s3-bucket ${{ env.DEPLOYMENT_BUCKET }} \
@@ -116,8 +120,7 @@ jobs:
 
       - name: Package Lambda functions
         run: |
-          echo "📦 Packaging Lambda functions..."
-          ENVIRONMENT="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+          ENVIRONMENT="${{ env.ENVIRONMENT }}"
 
           # Package invoice-trigger function
           cd lambda/invoice-trigger
@@ -145,69 +148,57 @@ jobs:
           aws s3 cp pdf-generator-${ENVIRONMENT}.zip s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/pdf-generator-${ENVIRONMENT}.zip --region us-west-2
           aws s3 cp agentcore-deploy-${ENVIRONMENT}.zip s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/agentcore-deploy-${ENVIRONMENT}.zip --region us-west-2
 
-          echo "✅ Lambda functions packaged and uploaded"
-
       - name: Check stack status and prepare for deployment
         run: |
-          STACK_NAME="globalinvoiceai-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+          STACK_NAME="globalinvoiceai-${{ env.ENVIRONMENT }}"
 
           # Check if stack exists and its status
           STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
 
           if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ]; then
-            echo "🧹 Found failed stack in ${STACK_STATUS} state, deleting before redeployment..."
+            echo "Found failed stack in ${STACK_STATUS} state, deleting before redeployment..."
             aws cloudformation delete-stack --stack-name ${STACK_NAME} --region us-west-2
-
-            # Wait for deletion to complete
-            echo "⏳ Waiting for stack deletion..."
             aws cloudformation wait stack-delete-complete --stack-name ${STACK_NAME} --region us-west-2
-            echo "✅ Failed stack deleted successfully - ready for new deployment"
+            echo "Failed stack deleted successfully"
           elif [ "$STACK_STATUS" = "UPDATE_ROLLBACK_COMPLETE" ]; then
-            echo "🔄 Stack is in UPDATE_ROLLBACK_COMPLETE state (rolled back to working configuration) - proceeding with update..."
-            echo "✅ Stack is in recoverable state - will attempt update"
+            echo "Stack in recoverable state, proceeding with update"
           elif [ "$STACK_STATUS" = "UPDATE_IN_PROGRESS" ] || [ "$STACK_STATUS" = "CREATE_IN_PROGRESS" ]; then
-            echo "⏳ Stack update/create in progress, waiting for completion..."
+            echo "Stack operation in progress, waiting for completion..."
             aws cloudformation wait stack-create-complete --stack-name ${STACK_NAME} --region us-west-2 2>/dev/null ||
             aws cloudformation wait stack-update-complete --stack-name ${STACK_NAME} --region us-west-2 2>/dev/null || {
-              echo "❌ Stack operation failed, checking status..."
               STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null)
-              echo "📋 Final stack status: ${STACK_STATUS}"
+              echo "Stack operation failed, final status: ${STACK_STATUS}"
             }
           else
-            echo "📋 Stack status: ${STACK_STATUS} - proceeding with deployment"
+            echo "Stack status: ${STACK_STATUS}"
           fi
 
       - name: Determine stack name and parameters
         id: stack-config
         run: |
-          STACK_NAME="globalinvoiceai-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+          STACK_NAME="globalinvoiceai-${{ env.ENVIRONMENT }}"
           echo "stack-name=${STACK_NAME}" >> $GITHUB_OUTPUT
 
           # Generate deterministic Cognito domain prefix
-          echo "🔄 Generating deterministic Cognito domain prefix..."
-          ENVIRONMENT="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+          ENVIRONMENT="${{ env.ENVIRONMENT }}"
           REPO_NAME="GlobalInvoiceAI"
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
           # Create deterministic suffix based on account ID and repo name
-          DETERMINISTIC_SUFFIX=$(echo "${ACCOUNT_ID}${REPO_NAME}" | md5sum | head -c 8 | tr '[:upper:]' '[:lower:]')
+          DETERMINISTIC_SUFFIX=$(echo "${{ steps.aws-account.outputs.account-id }}${REPO_NAME}" | md5sum | head -c 8 | tr '[:upper:]' '[:lower:]')
           COGNITO_PREFIX="globalinvoiceai-${ENVIRONMENT}-${DETERMINISTIC_SUFFIX}"
 
-          echo "✅ Using deterministic domain: ${COGNITO_PREFIX}"
-          echo "📝 Domain is deterministic based on account ID and repo name"
+          echo "Using Cognito domain: ${COGNITO_PREFIX}"
 
           echo "cognito-prefix=${COGNITO_PREFIX}" >> $GITHUB_OUTPUT
 
       - name: Deploy CloudFormation stack
         run: |
-          echo "🚀 Deploying CloudFormation stack: ${{ steps.stack-config.outputs.stack-name }}"
-
           # Deploy the stack
           aws cloudformation deploy \
             --template-file packaged-template.yaml \
             --stack-name ${{ steps.stack-config.outputs.stack-name }} \
             --parameter-overrides \
-              Environment=${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }} \
+              Environment=${{ env.ENVIRONMENT }} \
               CognitoDomainPrefix=${{ steps.stack-config.outputs.cognito-prefix }} \
               DeploymentArtifactsBucket=${{ env.DEPLOYMENT_BUCKET }} \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
@@ -217,7 +208,6 @@ jobs:
       - name: Get stack outputs
         id: stack-outputs
         run: |
-          echo "📋 Getting stack outputs..."
           STACK_NAME="${{ steps.stack-config.outputs.stack-name }}"
 
           # Get stack outputs and save them as environment variables
@@ -240,37 +230,13 @@ jobs:
           echo "user-pool-id=${USER_POOL_ID}" >> $GITHUB_OUTPUT
           echo "user-pool-client-id=${USER_POOL_CLIENT_ID}" >> $GITHUB_OUTPUT
 
-          echo "✅ Stack deployed successfully!"
-          echo "🎯 Amplify App URL: ${AMPLIFY_URL}"
-          echo "🔗 API Gateway URL: ${API_GATEWAY_URL}"
-          echo "📦 Invoice Upload Bucket: ${INVOICE_BUCKET}"
-
-      - name: Configure Amplify Environment Variables
-        run: |
-          echo "🔧 Configuring Amplify environment variables..."
-
-          # Extract Amplify App ID from URL
-          AMPLIFY_APP_ID="${{ steps.stack-outputs.outputs.amplify-url }}"
-          AMPLIFY_APP_ID=$(echo $AMPLIFY_APP_ID | sed 's|https://||' | sed 's|\..*||')
-
-          echo "📱 Amplify App ID: $AMPLIFY_APP_ID"
-
-          # Set environment variables in Amplify
-          aws amplify update-app \
-            --app-id $AMPLIFY_APP_ID \
-            --region us-west-2 \
-            --environment-variables "REACT_APP_USER_POOL_ID=${{ steps.stack-outputs.outputs.user-pool-id }},REACT_APP_USER_POOL_CLIENT_ID=${{ steps.stack-outputs.outputs.user-pool-client-id }},REACT_APP_API_URL=${{ steps.stack-outputs.outputs.api-gateway-url }},REACT_APP_REGION=us-west-2" \
-            --query 'app.environmentVariables' \
-            --output text || echo "⚠️ Could not update Amplify environment variables"
-
-          echo "✅ Amplify environment variables configured"
 
       - name: Create deployment summary
         run: |
           cat > deployment-summary.md << 'EOF'
           # 🚀 GlobalInvoiceAI Deployment Summary
 
-          **Environment:** ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+          **Environment:** ${{ env.ENVIRONMENT }}
           **Branch:** ${{ github.ref_name }}
           **Run ID:** ${{ github.run_id }}
           **Timestamp:** $(date -u)
@@ -286,7 +252,7 @@ jobs:
           ## 📦 S3 Buckets
           - **Invoice Upload:** ${{ steps.stack-outputs.outputs.invoice-bucket }}
 
-          ## 🔧 Environment Variables (Auto-configured)
+          ## 🔧 Environment Variables (Set by CloudFormation)
           - ✅ **User Pool ID:** ${{ steps.stack-outputs.outputs.user-pool-id }}
           - ✅ **User Pool Client ID:** ${{ steps.stack-outputs.outputs.user-pool-client-id }}
           - ✅ **API Gateway URL:** ${{ steps.stack-outputs.outputs.api-gateway-url }}
@@ -303,8 +269,6 @@ jobs:
           - Test invoice processing with sample data
           - Configure monitoring alerts if needed
           EOF
-
-          echo "📝 Deployment summary created"
 
       - name: Upload deployment summary
         uses: actions/upload-artifact@v4
@@ -323,7 +287,7 @@ jobs:
               repo: context.repo.repo,
               body: `## 🚀 Deployment Preview
 
-              **Environment:** ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+              **Environment:** ${{ env.ENVIRONMENT }}
 
               ### 📋 Stack Information
               - Stack Name: ${{ steps.stack-config.outputs.stack-name }}
@@ -335,6 +299,10 @@ jobs:
 
               ### 📦 S3 Buckets
               - **Invoice Upload:** ${{ steps.stack-outputs.outputs.invoice-bucket }}
+
+              ### 🔧 Environment Variables (Set by CloudFormation)
+              - **User Pool ID:** ${{ steps.stack-outputs.outputs.user-pool-id }}
+              - **User Pool Client ID:** ${{ steps.stack-outputs.outputs.user-pool-client-id }}
 
               > This is a deployment preview. The stack will be deployed when the PR is merged.`
             })
@@ -361,14 +329,13 @@ jobs:
 
       - name: Log in to Amazon ECR
         run: |
-          # Get ECR login token and login
           aws ecr get-login-password --region us-west-2 | \
           docker login --username AWS --password-stdin \
-          $(aws sts get-caller-identity --query Account --output text).dkr.ecr.us-west-2.amazonaws.com
+          ${{ steps.aws-account.outputs.account-id }}.dkr.ecr.us-west-2.amazonaws.com
 
       - name: Build and push AgentCore Docker image
         run: |
-          STACK_NAME="globalinvoiceai-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+          STACK_NAME="globalinvoiceai-${{ env.ENVIRONMENT }}"
 
           # Get ECR repository URI from stack outputs
           ECR_REPO=$(aws cloudformation describe-stacks \
@@ -378,35 +345,22 @@ jobs:
             --output text)
 
           if [ -z "$ECR_REPO" ] || [ "$ECR_REPO" = "None" ]; then
-            echo "❌ ECR repository not found in stack outputs"
+            echo "ECR repository not found in stack outputs"
             exit 1
           fi
 
-          echo "🏗️ Building AgentCore Docker image..."
           IMAGE_TAG="${ECR_REPO}:latest"
 
           cd agentcore
           docker build -t ${IMAGE_TAG} .
           docker push ${IMAGE_TAG}
 
-          echo "✅ AgentCore image built and pushed: ${IMAGE_TAG}"
-
       - name: Trigger AgentCore deployment
         run: |
-          STACK_NAME="globalinvoiceai-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
-
-          echo "🔄 Triggering AgentCore deployment via CloudFormation..."
+          STACK_NAME="globalinvoiceai-${{ env.ENVIRONMENT }}"
 
           # The AgentCoreDeployFunction in the CloudFormation template will handle the actual deployment
-          # We just need to wait for it to complete
-
-          # Check if AgentCoreDeployFunction exists and is running
-          FUNCTION_NAME="${STACK_NAME}-agentcore-deploy-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
-
-          # Wait for the Custom Resource to complete (it runs during stack deployment)
-          echo "⏳ Waiting for AgentCore deployment to complete..."
-
-          # Check stack status
+          # Check stack status to verify completion
           STACK_STATUS=$(aws cloudformation describe-stacks \
             --stack-name ${STACK_NAME} \
             --region us-west-2 \
@@ -414,9 +368,9 @@ jobs:
             --output text)
 
           if [ "$STACK_STATUS" = "CREATE_COMPLETE" ] || [ "$STACK_STATUS" = "UPDATE_COMPLETE" ]; then
-            echo "✅ AgentCore deployment completed successfully"
+            echo "AgentCore deployment completed successfully"
           else
-            echo "⚠️ Stack status: ${STACK_STATUS}. AgentCore deployment may still be in progress."
+            echo "Stack status: ${STACK_STATUS}"
           fi
 
   cleanup:
@@ -435,15 +389,12 @@ jobs:
         run: |
           # Clean up Lambda function ZIP files from deployment bucket
           if [ ! -z "${{ env.DEPLOYMENT_BUCKET }}" ]; then
-            ENVIRONMENT="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
-            echo "🧹 Cleaning up Lambda ZIP files from bucket: ${{ env.DEPLOYMENT_BUCKET }}"
+            ENVIRONMENT="${{ env.ENVIRONMENT }}"
 
             # Remove Lambda function ZIP files
             aws s3 rm s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/invoice-trigger-${ENVIRONMENT}.zip || true
             aws s3 rm s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/pdf-generator-${ENVIRONMENT}.zip || true
             aws s3 rm s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/agentcore-deploy-${ENVIRONMENT}.zip || true
-
-            echo "✅ Lambda artifacts cleaned up (bucket preserved for reuse)"
           fi
 
   notify:
@@ -459,5 +410,5 @@ jobs:
 
       - name: Send notification
         run: |
-          echo "📢 Deployment completed for ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }} environment"
+          echo "📢 Deployment completed for ${{ env.ENVIRONMENT }} environment"
           echo "📋 Check deployment-summary.md for details"

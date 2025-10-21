@@ -62,11 +62,21 @@ const Dashboard = () => {
 
   // Chart data for processing time
   const processingTimeData = {
-    labels: metrics?.processingTime?.map(m => new Date(m.timestamp).toLocaleTimeString()) || [],
+    labels: metrics?.processingTime?.map(m => {
+      try {
+        return new Date(m.timestamp).toLocaleTimeString();
+      } catch (error) {
+        console.warn('Invalid timestamp:', m.timestamp);
+        return 'Invalid Date';
+      }
+    }) || [],
     datasets: [
       {
         label: 'Processing Time (seconds)',
-        data: metrics?.processingTime?.map(m => m.value) || [],
+        data: metrics?.processingTime?.map(m => {
+          const value = parseFloat(m.value);
+          return isNaN(value) ? 0 : value;
+        }) || [],
         borderColor: 'rgb(75, 192, 192)',
         backgroundColor: 'rgba(75, 192, 192, 0.2)',
         tension: 0.1,

@@ -97,10 +97,14 @@ const InvoiceList = () => {
   };
 
   const formatCurrency = (amount, currency) => {
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount)) {
+      return 'N/A';
+    }
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: currency || 'USD'
-    }).format(amount);
+    }).format(numAmount);
   };
 
   if (loading) {
@@ -212,6 +216,7 @@ const InvoiceList = () => {
                           size="sm"
                           className="me-2"
                           onClick={() => handleViewInvoice(invoice.InvoiceId)}
+                          aria-label="View invoice details"
                         >
                           <FaEye />
                         </Button>
@@ -220,6 +225,7 @@ const InvoiceList = () => {
                             variant="outline-success"
                             size="sm"
                             onClick={() => handleDownloadPDF(invoice.InvoiceId)}
+                            aria-label="Download PDF"
                           >
                             <FaDownload />
                           </Button>

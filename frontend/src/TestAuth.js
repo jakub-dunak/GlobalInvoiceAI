@@ -3,31 +3,28 @@ import { Amplify, Auth } from 'aws-amplify';
 import { Authenticator } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
 
-// Force reconfigure on component mount
-useEffect(() => {
-  // Force reconfigure to pick up new environment variables
-  Amplify.configure({
-    Auth: {
-      Cognito: {
-        userPoolId: process.env.REACT_APP_USER_POOL_ID,
-        userPoolClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID,
-        loginWith: {
-          email: true,
-        }
-      }
-    }
-  });
-  console.log('🔄 Force reconfigured Amplify with:', {
-    userPoolId: process.env.REACT_APP_USER_POOL_ID,
-    userPoolClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID,
-  });
-}, []);
-
 export default function TestAuth() {
   const [currentUser, setCurrentUser] = React.useState(null);
   const [error, setError] = React.useState(null);
 
   useEffect(() => {
+    // Force reconfigure to pick up new environment variables
+    Amplify.configure({
+      Auth: {
+        Cognito: {
+          userPoolId: process.env.REACT_APP_USER_POOL_ID,
+          userPoolClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID,
+          loginWith: {
+            email: true,
+          }
+        }
+      }
+    });
+    console.log('🔄 Force reconfigured Amplify with:', {
+      userPoolId: process.env.REACT_APP_USER_POOL_ID,
+      userPoolClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID,
+    });
+
     // Check if user is already authenticated
     Auth.currentAuthenticatedUser()
       .then(user => {

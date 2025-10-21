@@ -274,7 +274,7 @@ def store_invoice_result(invoice_id: str, validation_result: dict) -> dict:
 
 # Initialize Bedrock model
 model = BedrockModel(
-    model_id="us.anthropic.claude-3-5-sonnet-20241022-v1:0"
+    model_id="us.amazon.nova-pro-v1:0"
 )
 
 # Create agent with tools
