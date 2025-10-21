@@ -608,8 +608,6 @@ Resources:
 
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
-    UpdateReplacePolicy: Replace
-    DeletionPolicy: Retain
     Properties:
       UserPoolId: !Ref UserPool
       Domain: !Sub '${CognitoDomainPrefix}-${Environment}'
