@@ -397,17 +397,20 @@ jobs:
           ENVIRONMENT="${{ env.ENVIRONMENT }}"
           STACK_NAME="globalinvoiceai-${ENVIRONMENT}"
 
-          # Get Amplify App ID from stack outputs
-          AMPLIFY_APP_ID=$(aws cloudformation describe-stacks \
+          # Get Amplify App ID from stack outputs (extract just the app ID from ARN)
+          AMPLIFY_APP_ARN=$(aws cloudformation describe-stacks \
             --stack-name ${STACK_NAME} \
             --region us-west-2 \
             --query 'Stacks[0].Outputs[?OutputKey==`AmplifyAppId`].OutputValue' \
             --output text 2>/dev/null || echo "")
 
-          if [ -z "$AMPLIFY_APP_ID" ] || [ "$AMPLIFY_APP_ID" = "None" ]; then
-            echo "Could not find Amplify App ID in stack outputs"
+          if [ -z "$AMPLIFY_APP_ARN" ] || [ "$AMPLIFY_APP_ARN" = "None" ]; then
+            echo "Could not find Amplify App ARN in stack outputs"
             exit 1
           fi
+
+          # Extract just the app ID from the ARN (format: arn:aws:amplify:region:account:apps/appId)
+          AMPLIFY_APP_ID=$(echo "$AMPLIFY_APP_ARN" | awk -F'/' '{print $NF}')
 
           echo "Starting Amplify deployment..."
           echo "App ID: ${AMPLIFY_APP_ID}"

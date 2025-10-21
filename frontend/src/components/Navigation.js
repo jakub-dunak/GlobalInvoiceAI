@@ -1,10 +1,12 @@
 import React from 'react';
 import { Navbar, Nav, Container } from 'react-bootstrap';
 import { Link, useLocation } from 'react-router-dom';
+import { useAuthenticator } from '@aws-amplify/ui-react';
 import { FaSignOutAlt, FaUser } from 'react-icons/fa';
 
-const Navigation = ({ user = null, onSignOut = () => {} }) => {
+const Navigation = () => {
   const location = useLocation();
+  const { user, signOut } = useAuthenticator((context) => [context.user, context.signOut]);
 
   return (
     <Navbar bg="dark" variant="dark" expand="lg">
@@ -43,9 +45,9 @@ const Navigation = ({ user = null, onSignOut = () => {} }) => {
           <Nav className="ms-auto">
             <Navbar.Text className="me-3">
               <FaUser className="me-1" />
-              {user?.attributes?.email || 'User'}
+              {user?.signInDetails?.loginId || user?.attributes?.email || 'User'}
             </Navbar.Text>
-            <Nav.Link onClick={onSignOut}>
+            <Nav.Link onClick={signOut}>
               <FaSignOutAlt className="me-1" />
               Sign Out
             </Nav.Link>
