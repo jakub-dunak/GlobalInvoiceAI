@@ -350,6 +350,12 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/personal-github-oidc-role
           aws-region: us-west-2
 
+      - name: Setup deployment bucket environment variable
+        run: |
+          ENVIRONMENT="${{ env.ENVIRONMENT }}"
+          BUCKET_NAME="globalinvoiceai-deployment-us-west-2-${ENVIRONMENT}"
+          echo "DEPLOYMENT_BUCKET=${BUCKET_NAME}" >> $GITHUB_ENV
+
       - name: Upload frontend build to Amplify source bucket
         run: |
           ENVIRONMENT="${{ env.ENVIRONMENT }}"
