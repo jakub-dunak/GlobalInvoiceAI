@@ -15,10 +15,6 @@ on:
           - dev
           - staging
           - prod
-      deployment_bucket:
-        description: 'S3 bucket containing deployment artifacts'
-        required: false
-        type: string
 
 # Region is set per environment in .github/environments/
 
@@ -90,12 +86,7 @@ jobs:
       - name: Setup S3 bucket for deployment artifacts
         run: |
           ENVIRONMENT="${{ env.ENVIRONMENT }}"
-          # Use provided deployment bucket or default naming convention
-          if [ -n "${{ github.event.inputs.deployment_bucket }}" ]; then
-            BUCKET_NAME="${{ github.event.inputs.deployment_bucket }}"
-          else
-            BUCKET_NAME="globalinvoiceai-deployment-us-west-2-${ENVIRONMENT}"
-          fi
+          BUCKET_NAME="globalinvoiceai-deployment-us-west-2-${ENVIRONMENT}"
           echo "DEPLOYMENT_BUCKET=${BUCKET_NAME}" >> $GITHUB_ENV
 
           # Check if bucket exists
@@ -237,7 +228,7 @@ jobs:
           # 🚀 GlobalInvoiceAI Deployment Summary (Bucket Strategy)
 
           **Environment:** ${{ env.ENVIRONMENT }}
-          **Deployment Bucket:** ${{ env.DEPLOYMENT_BUCKET }}
+          **Deployment Bucket:** globalinvoiceai-deployment-us-west-2-${{ env.ENVIRONMENT }}
           **Run ID:** ${{ github.run_id }}
           **Timestamp:** $(date -u)
           **Strategy:** Bucket-based deployment
