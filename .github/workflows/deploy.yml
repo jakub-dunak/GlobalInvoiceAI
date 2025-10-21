@@ -384,8 +384,16 @@ jobs:
 
           echo "Frontend build also archived to s3://${DEPLOYMENT_BUCKET}/frontend/"
 
-      - name: Trigger Amplify deployment
+      - name: Deploy React frontend to Amplify
+        id: deploy-amplify
         run: |
+          cd frontend
+
+          # Create a deployment package
+          cd build
+          zip -r ../amplify-deployment.zip .
+          cd ..
+
           ENVIRONMENT="${{ env.ENVIRONMENT }}"
           STACK_NAME="globalinvoiceai-${ENVIRONMENT}"
 
@@ -401,37 +409,88 @@ jobs:
             exit 1
           fi
 
-          # Get the Amplify source bucket name
-          AMPLIFY_BUCKET=$(aws cloudformation describe-stacks \
-            --stack-name ${STACK_NAME} \
-            --region us-west-2 \
-            --query 'Stacks[0].Outputs[?OutputKey==`AmplifySourceBucketName`].OutputValue' \
-            --output text 2>/dev/null || echo "")
-
-          if [ -z "$AMPLIFY_BUCKET" ] || [ "$AMPLIFY_BUCKET" = "None" ]; then
-            # Fallback to constructed bucket name
-            AMPLIFY_BUCKET="${STACK_NAME}-amplify-source-${ENVIRONMENT}"
-          fi
-
-          echo "Triggering Amplify deployment..."
+          echo "Starting Amplify deployment..."
           echo "App ID: ${AMPLIFY_APP_ID}"
           echo "Branch: ${ENVIRONMENT}"
-          echo "Source: s3://${AMPLIFY_BUCKET}/frontend/"
 
-          # Trigger deployment using the frontend prefix
+          # Create deployment
+          DEPLOYMENT_OUTPUT=$(aws amplify create-deployment \
+            --app-id "$AMPLIFY_APP_ID" \
+            --branch-name "$ENVIRONMENT" \
+            --region us-west-2 \
+            --output json)
+
+          UPLOAD_URL=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.zipUploadUrl')
+          JOB_ID=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.jobId')
+
+          echo "Deployment created with Job ID: $JOB_ID"
+
+          # Upload the zip file to the pre-signed URL with retry
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if curl -X PUT "$UPLOAD_URL" \
+              -H "Content-Type: application/zip" \
+              --max-time 300 \
+              --data-binary @amplify-deployment.zip; then
+              echo "✅ Frontend package uploaded successfully"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "Upload attempt $RETRY_COUNT failed, retrying in 10 seconds..."
+                sleep 10
+              else
+                echo "❌ Failed to upload frontend package after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
+
+          # Start the deployment
           aws amplify start-deployment \
-            --app-id ${AMPLIFY_APP_ID} \
-            --branch-name ${ENVIRONMENT} \
-            --source-url s3://${AMPLIFY_BUCKET}/frontend/ \
-            --source-url-type BUCKET_PREFIX \
-            --region us-west-2
+            --app-id "$AMPLIFY_APP_ID" \
+            --branch-name "$ENVIRONMENT" \
+            --job-id "$JOB_ID" \
+            --region us-west-2 || (echo "❌ Failed to start Amplify deployment" && exit 1)
 
-          if [ $? -eq 0 ]; then
-            echo "✅ Amplify deployment triggered successfully"
-          else
-            echo "❌ Failed to trigger Amplify deployment"
+          echo "🚀 Amplify deployment started, waiting for completion..."
+
+          # Wait for deployment completion
+          MAX_WAIT=900  # 15 minutes
+          WAIT_TIME=0
+          while [ $WAIT_TIME -lt $MAX_WAIT ]; do
+            JOB_STATUS=$(aws amplify get-job \
+              --app-id "$AMPLIFY_APP_ID" \
+              --branch-name "$ENVIRONMENT" \
+              --job-id "$JOB_ID" \
+              --query 'job.summary.status' \
+              --output text \
+              --region us-west-2)
+
+            echo "Deployment status: $JOB_STATUS (waited ${WAIT_TIME}s)"
+
+            if [ "$JOB_STATUS" = "SUCCEED" ]; then
+              echo "✅ Amplify deployment completed successfully!"
+              break
+            elif [ "$JOB_STATUS" = "FAILED" ] || [ "$JOB_STATUS" = "CANCELLED" ]; then
+              echo "❌ Amplify deployment failed with status: $JOB_STATUS"
+              exit 1
+            fi
+            sleep 30
+            WAIT_TIME=$((WAIT_TIME + 30))
+          done
+
+          if [ $WAIT_TIME -ge $MAX_WAIT ]; then
+            echo "❌ Amplify deployment timed out after 15 minutes"
             exit 1
           fi
+
+          # Upload frontend build to S3 bucket for backup/static hosting
+          echo "📦 Uploading frontend build to S3 backup bucket..."
+          aws s3 sync build/ s3://${{ env.DEPLOYMENT_BUCKET }}/frontend/ --delete --region us-west-2
+          echo "✅ Frontend build uploaded to S3 backup"
 
   build-agentcore:
     name: Build and Deploy AgentCore Application
