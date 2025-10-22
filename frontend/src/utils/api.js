@@ -25,16 +25,24 @@ class ApiService {
   async getAuthHeaders() {
     try {
       const session = await Auth.currentSession();
+
       // API Gateway Cognito Authorizer expects the ID token, not the access token
       if (session?.idToken?.jwtToken) {
+        console.log('Sending auth headers with ID token');
         return {
           'Authorization': session.idToken.jwtToken,
           'Content-Type': 'application/json'
         };
       }
+
+      console.warn('No valid ID token in session');
     } catch (error) {
-      console.error('Error getting auth headers:', error);
+      console.error('Auth session error:', error.message);
     }
+
+    // If no valid session, don't send Authorization header
+    // This will cause 401 from API Gateway, which should be handled properly
+    console.log('No auth headers available');
     return { 'Content-Type': 'application/json' };
   }
 
