@@ -1,320 +1,340 @@
-# GlobalInvoiceAI Agent
+# GlobalInvoiceAI
 
-## 🚀 AI-Powered Global Invoice Management System
+GlobalInvoiceAI is an autonomous AI-powered global invoice management and validation system built on AWS serverless architecture. It automates vendor invoice processing, tax compliance calculations, currency conversions, and customer invoice generation using Amazon Bedrock AgentCore with the Strands framework.
 
-GlobalInvoiceAI is an autonomous AI agent for global invoice management and validation in procurement. It handles incoming vendor invoice validation and outgoing customer invoice generation with multi-currency support, diverse tax mechanisms, and regional compliance requirements.
+## Architecture Overview
 
-### ✨ Key Features
+```mermaid
+graph TB
+    subgraph "User Interface"
+        UI[React Dashboard<br/>AWS Amplify]
+        Auth[AWS Cognito<br/>Authentication]
+    end
 
-- **🤖 Autonomous AI Agent**: Powered by Amazon Bedrock AgentCore with Strands framework for intelligent invoice processing
-- **🌍 Multi-Currency Support**: Real-time currency conversion using Fixer.io API
-- **📊 Tax Compliance**: Automated tax calculations for multiple regions (US, UK, India, and more)
-- **📄 PDF Generation**: Professional invoice PDFs generated using ReportLab
-- **🔒 Secure Authentication**: AWS Cognito for user management and access control
-- **📈 Real-time Monitoring**: CloudWatch dashboards for processing metrics and logs
-- **⚡ Serverless Architecture**: Near-zero cost when idle using AWS Lambda, API Gateway, and DynamoDB
+    subgraph "API Layer"
+        API[API Gateway<br/>REST API]
+    end
 
-## 🏗️ Architecture
+    subgraph "Processing Layer"
+        Lambda1[Invoice Trigger Lambda<br/>Event Processing]
+        Lambda2[PDF Generator Lambda<br/>Document Creation]
+        AgentCore[Bedrock AgentCore<br/>AI Agent Runtime]
+    end
 
+    subgraph "AI & Business Logic"
+        Bedrock[Amazon Bedrock<br/>Claude 3.5 Sonnet]
+        Agent[Strands Agent<br/>Invoice Processing]
+    end
+
+    subgraph "Data Storage"
+        DDB[(DynamoDB<br/>Invoice Records)]
+        TaxCache[(DynamoDB<br/>Tax Rate Cache)]
+        Logs[(DynamoDB<br/>Processing Logs)]
+    end
+
+    subgraph "File Storage"
+        S3Upload[(S3 Bucket<br/>Invoice Upload)]
+        S3Processed[(S3 Bucket<br/>Processed Files)]
+        ECR[(ECR Repository<br/>Agent Images)]
+    end
+
+    subgraph "Event Processing"
+        EventBridge[EventBridge<br/>S3 Triggers]
+    end
+
+    UI --> Auth
+    Auth --> API
+    API --> Lambda1
+    API --> Lambda2
+    S3Upload --> EventBridge
+    EventBridge --> Lambda1
+    Lambda1 --> AgentCore
+    AgentCore --> Bedrock
+    AgentCore --> DDB
+    AgentCore --> TaxCache
+    Lambda2 --> S3Processed
+    Lambda1 --> Logs
+    Lambda2 --> Logs
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   S3 Upload     │───▶│   AgentCore      │───▶│   DynamoDB      │
-│   (Invoices)    │    │   Runtime        │    │   (Storage)     │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   EventBridge   │    │   Bedrock Agent  │    │   CloudWatch    │
-│   (Triggers)    │    │   (Claude 3.5)   │    │   (Monitoring)  │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Lambda        │    │   External APIs  │    │   Amplify UI    │
-│   (Processing)  │    │   (Tax/Currency) │    │   (Dashboard)   │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
 
-## 🛠️ Tech Stack
+## Key Features
+
+- **Autonomous AI Agent**: Intelligent invoice validation and processing using Amazon Bedrock AgentCore
+- **Multi-Currency Support**: Currency conversion with hardcoded exchange rates for demo purposes
+- **Tax Compliance**: Automated tax calculations for multiple regions including US state sales tax, UK VAT, and Indian GST
+- **PDF Generation**: Professional invoice documents generated using ReportLab
+- **Serverless Architecture**: Cost-effective deployment using AWS Lambda, API Gateway, and DynamoDB
+- **Secure Authentication**: User management and access control via AWS Cognito
+- **Real-time Monitoring**: Comprehensive logging and metrics through CloudWatch
+
+## Supported Regions and Tax Systems
+
+The system supports tax calculations for the following regions:
+
+- **United States**: State-level sales tax (CA, NY, TX, FL)
+- **United Kingdom**: Standard VAT (20%)
+- **India**: GST (18%) with state variations (Maharashtra, Karnataka, Delhi)
+- **Canada**: HST/GST/PST combinations (Ontario, British Columbia, Quebec)
+- **Australia**: GST by state (NSW, Victoria, Queensland)
+- **European Union**: Country-specific VAT rates (Germany, France, Italy, Spain, Netherlands)
+
+## Technology Stack
 
 ### Core Infrastructure
-- **Amazon Bedrock AgentCore**: Runtime for autonomous AI agents
-- **Strands Framework**: Python framework for agent development
-- **Amazon Bedrock**: Claude 3.5 Sonnet model for intelligent processing
-- **AWS Lambda**: Serverless compute for invoice processing
-- **Amazon S3**: Storage for invoice files and generated PDFs
-- **Amazon DynamoDB**: NoSQL database for invoice records and caching
-
-### External Integrations
-- **Hardcoded Values**: Tax rates and currency exchange rates (for demo)
-- **ReportLab**: PDF generation library
-
-*Note: Currently using hardcoded values for demo purposes. In production, integrate with real-time APIs like Fixer.io for currency rates and AbstractAPI for tax information.*
+- **Amazon Bedrock AgentCore**: Runtime environment for autonomous AI agents
+- **Strands Framework**: Python framework for agent development and orchestration
+- **Amazon Bedrock**: Claude 3.5 Sonnet foundation model for intelligent processing
+- **AWS Lambda**: Serverless compute for invoice processing and PDF generation
+- **Amazon S3**: Object storage for invoice files and generated documents
+- **Amazon DynamoDB**: NoSQL database for invoice records, tax cache, and processing logs
 
 ### User Interface & Security
-- **AWS Amplify**: React-based admin dashboard
-- **AWS Cognito**: Authentication and user management
-- **Amazon API Gateway**: Secure API endpoints
-- **Amazon CloudWatch**: Monitoring and alerting
+- **React**: Frontend application with modern JavaScript framework
+- **AWS Amplify**: Hosting and deployment platform for web applications
+- **AWS Cognito**: User authentication and authorization service
+- **Amazon API Gateway**: RESTful API management and security
+- **Amazon CloudWatch**: Monitoring, logging, and alerting
 
-## 🚀 Quick Start
+### Development Tools
+- **ReportLab**: PDF document generation library
+- **Boto3**: AWS SDK for Python
+- **Bootstrap**: CSS framework for responsive UI components
+- **Chart.js**: Data visualization library
+
+## Infrastructure Components
+
+```mermaid
+graph TD
+    subgraph "S3 Storage Layer"
+        UploadBucket[Invoice Upload Bucket<br/>globalinvoiceai-invoice-upload-{env}]
+        ProcessedBucket[Processed Invoices Bucket<br/>globalinvoiceai-processed-invoices-{env}]
+        AgentCodeBucket[Agent Code Bucket<br/>globalinvoiceai-agent-code-{env}]
+        AmplifySourceBucket[Amplify Source Bucket<br/>globalinvoiceai-amplify-source-{env}]
+    end
+
+    subgraph "DynamoDB Tables"
+        Invoices[Invoices Table<br/>Primary Key: InvoiceId<br/>GSI: Status, CustomerId]
+        TaxRates[Tax Rates Cache<br/>Primary Key: CountryRegion, TaxType<br/>TTL: 24h]
+        ProcessingLogs[Processing Logs<br/>Primary Key: LogId<br/>GSI: InvoiceId, Timestamp<br/>TTL: 30d]
+    end
+
+    subgraph "Lambda Functions"
+        InvoiceTrigger[Invoice Trigger Function<br/>Python 3.11, 256MB<br/>Timeout: 300s]
+        PDFGenerator[PDF Generator Function<br/>Python 3.11, 512MB<br/>Timeout: 60s]
+        AgentCoreDeploy[AgentCore Deploy Function<br/>Python 3.11, 512MB<br/>Timeout: 900s]
+    end
+
+    subgraph "Authentication"
+        UserPool[Cognito User Pool<br/>Email-based authentication]
+        UserPoolClient[User Pool Client<br/>SPA configuration]
+        IdentityPool[Cognito Identity Pool<br/>IAM role assignment]
+    end
+
+    subgraph "API & Events"
+        ApiGateway[API Gateway<br/>Regional deployment<br/>CORS enabled]
+        EventBridgeRule[EventBridge Rule<br/>S3 object created events]
+    end
+
+    subgraph "Monitoring"
+        CloudWatchDashboard[CloudWatch Dashboard<br/>Metrics visualization]
+        CloudWatchLogs[CloudWatch Logs<br/>Function and API logs]
+        CloudWatchAlarms[CloudWatch Alarms<br/>Error rate monitoring]
+    end
+
+    UploadBucket --> EventBridgeRule
+    EventBridgeRule --> InvoiceTrigger
+    InvoiceTrigger --> ApiGateway
+    PDFGenerator --> ApiGateway
+    InvoiceTrigger --> Invoices
+    InvoiceTrigger --> TaxRates
+    InvoiceTrigger --> ProcessingLogs
+    PDFGenerator --> Invoices
+    PDFGenerator --> ProcessingLogs
+    PDFGenerator --> ProcessedBucket
+    AgentCoreDeploy --> ECR
+    UserPool --> UserPoolClient
+    UserPoolClient --> IdentityPool
+    InvoiceTrigger --> CloudWatchLogs
+    PDFGenerator --> CloudWatchLogs
+    CloudWatchLogs --> CloudWatchDashboard
+```
+
+## Agent Architecture
+
+```mermaid
+stateDiagram-v2
+    [*] --> InvoiceReceived: S3 Upload / API Call
+
+    InvoiceReceived --> ValidateFields: Extract Invoice Data
+    ValidateFields --> TaxCalculation: Fields Valid
+    ValidateFields --> ValidationFailed: Invalid Fields
+
+    TaxCalculation --> CurrencyConversion: Tax Calculated
+    CurrencyConversion --> DiscrepancyCheck: Currency Converted
+    DiscrepancyCheck --> GeneratePDF: No Discrepancies
+    DiscrepancyCheck --> HumanReview: Discrepancies Found
+
+    GeneratePDF --> StoreResults: PDF Generated
+    StoreResults --> [*]: Success
+
+    ValidationFailed --> [*]: Error Logged
+    HumanReview --> [*]: Manual Review Required
+
+    note right of ValidateFields
+        Required: customer_name,
+        total_amount, currency
+    end note
+
+    note right of TaxCalculation
+        Uses hardcoded tax rates
+        for demo purposes
+    end note
+
+    note right of CurrencyConversion
+        Supports 10+ currencies
+        with fixed exchange rates
+    end note
+```
+
+## Data Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API Gateway
+    participant Lambda
+    participant S3
+    participant AgentCore
+    participant Bedrock
+    participant DynamoDB
+
+    User->>Frontend: Upload Invoice
+    Frontend->>API Gateway: POST /invoices
+    API Gateway->>Lambda: Invoke Function
+    Lambda->>S3: Store Invoice File
+    S3->>EventBridge: Object Created Event
+    EventBridge->>Lambda: Trigger Processing
+
+    Lambda->>AgentCore: Invoke AI Agent
+    AgentCore->>Bedrock: Process with Claude 3.5
+    Bedrock->>AgentCore: Validation Results
+    AgentCore->>DynamoDB: Store Invoice Record
+    AgentCore->>Lambda: Return Results
+
+    Lambda->>CloudWatch: Log Metrics
+    Lambda->>Frontend: Processing Complete
+
+    User->>Frontend: Request PDF
+    Frontend->>API Gateway: GET /invoices/{id}/pdf
+    API Gateway->>PDF Lambda: Invoke Function
+    PDF Lambda->>DynamoDB: Get Invoice Data
+    PDF Lambda->>PDF Lambda: Generate PDF
+    PDF Lambda->>S3: Store PDF File
+    PDF Lambda->>Frontend: Return PDF URL
+```
+
+## Quick Start
 
 ### Prerequisites
 
-1. **AWS Account** with appropriate permissions
-2. **AWS CLI** configured with your credentials
-3. **GitHub OIDC Provider** set up in AWS (see [DEPLOYMENT.md](docs/DEPLOYMENT.md))
-4. **Git** for cloning the repository
-5. **Node.js** (v16+) for the frontend
-6. **Python** (v3.11+) for Lambda functions
+- AWS Account with appropriate permissions
+- AWS CLI configured with credentials
+- Node.js (v16+) for frontend development
+- Python (v3.11+) for Lambda functions
+- Git for repository cloning
 
-### 1. Clone and Setup
+### Deployment
 
-```bash
-git clone https://github.com/YOUR_USERNAME/GlobalInvoiceAI.git
-cd GlobalInvoiceAI
+1. **Clone Repository**
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/GlobalInvoiceAI.git
+   cd GlobalInvoiceAI
+   ```
 
-# Install frontend dependencies
-cd frontend
-npm install
-cd ..
+2. **Deploy Infrastructure**
+   ```bash
+   # Create deployment bucket
+   aws s3 mb s3://globalinvoiceai-deployment-us-west-2-dev
 
-# Configure AWS CLI (if not already done)
-aws configure
-```
+   # Package and deploy CloudFormation stack
+   aws cloudformation package \
+     --template-file cloudformation/globalinvoiceai-stack.yaml \
+     --s3-bucket globalinvoiceai-deployment-us-west-2-dev \
+     --output-template-file packaged-template.yaml
 
-### 2. Deploy Infrastructure
+   aws cloudformation deploy \
+     --template-file packaged-template.yaml \
+     --stack-name globalinvoiceai-dev \
+     --parameter-overrides \
+       Environment=dev \
+       CognitoDomainPrefix=globalinvoiceai-dev-$(date +%s) \
+       DeploymentArtifactsBucket=globalinvoiceai-deployment-us-west-2-dev \
+     --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
+   ```
 
-```bash
-# Create reusable deployment bucket (if not exists)
-aws s3 mb s3://globalinvoiceai-deployment-us-west-2-dev || echo "Bucket already exists"
+3. **Configure Amplify Application**
+   - Connect the Amplify app to your GitHub repository
+   - Deploy the frontend application
 
-# Package and deploy CloudFormation stack
-aws cloudformation package \
-  --template-file cloudformation/globalinvoiceai-stack.yaml \
-  --s3-bucket globalinvoiceai-deployment-us-west-2-dev \
-  --output-template-file packaged-template.yaml
+4. **Create Admin User**
+   ```bash
+   # Get User Pool ID from CloudFormation outputs
+   USER_POOL_ID=$(aws cloudformation describe-stacks \
+     --stack-name globalinvoiceai-dev \
+     --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
+     --output text)
 
-aws cloudformation deploy \
-  --template-file packaged-template.yaml \
-  --stack-name globalinvoiceai-dev \
-  --parameter-overrides \
-    Environment=dev \
-    CognitoDomainPrefix=globalinvoiceai-dev \
-    DeploymentArtifactsBucket=globalinvoiceai-deployment-us-west-2-dev \
-  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
-```
+   # Create admin user
+   aws cognito-idp admin-create-user \
+     --user-pool-id $USER_POOL_ID \
+     --username admin@globalinvoiceai.com \
+     --temporary-password TempPassword123!
+   ```
 
-### 3. Deploy (Automated with GitHub Actions)
+## Testing
 
-The deployment is fully automated using GitHub Actions. The workflow handles:
+Test the system using provided sample invoice files:
 
-- ✅ **Amplify App Creation**: Creates Amplify app (GitHub connection configured manually)
-
-- ✅ **Domain Generation**: Auto-generates unique Cognito domain prefixes
-
-- ✅ **CloudFormation Validation**: Template syntax and structure validation
-- ✅ **Infrastructure Deployment**: Automated stack creation and updates
-- ✅ **AgentCore Build**: Docker image building and ECR deployment
-- ✅ **Environment Management**: Separate dev/staging/prod environments
-- ✅ **Testing**: Automated testing of all components
-- ✅ **Security Scanning**: Vulnerability checks and secret detection
-
-**Quick Deploy:**
-1. Set up GitHub repository secrets (see configuration below)
-2. Push to `main` branch or use manual workflow dispatch
-3. Monitor deployment progress in GitHub Actions
-
-*Note: Currently using hardcoded values for demo. No external API configuration needed.*
-
-## 🤖 GitHub Actions Configuration
-
-### Required Repository Secrets
-
-Set up these secrets in your GitHub repository settings (Secrets and variables > Actions):
-
-1. **AWS_ACCOUNT_ID**: Your AWS account ID (used to construct the IAM role ARN for GitHub Actions OIDC authentication)
-
-### Environment Configuration
-
-The deployment workflow supports multiple environments:
-
-- **Development** (`dev`): Automatic deployment on pushes to `develop` branch
-- **Production** (`prod`): Protected deployment requiring manual approval
-
-### Workflow Triggers
-
-**Automatic Deployment:**
-- Push to `main` branch → Production deployment
-- Push to `develop` branch → Development deployment
-- Changes to CloudFormation/AgentCore → Validation and testing
-
-**Manual Deployment:**
-- Use "workflow_dispatch" in GitHub Actions tab
-- Choose target environment (dev/staging/prod)
-
-### Monitoring Deployments
-
-1. **GitHub Actions Tab**: Monitor deployment progress and logs
-2. **Deployment Summary**: Download artifact for detailed deployment information
-3. **CloudWatch Dashboard**: Monitor application metrics post-deployment
-
-### 4. Post-Deployment Setup
-
-**⚠️ Important:** After CloudFormation deployment completes, you must manually connect the Amplify app to your GitHub repository:
-
-1. Go to AWS Amplify Console
-2. Select your app (named like `globalinvoiceai-dev-ui-dev`)
-3. Go to "App settings" → "Repository"
-4. Connect to GitHub and select your `GlobalInvoiceAI` repository
-5. Choose the `main` branch and save
-
-This step is required because CloudFormation cannot securely store GitHub credentials.
-
-### 5. Access the Application
-
-1. **Admin Dashboard**: Get the Amplify URL from CloudFormation outputs
-2. **API Gateway**: Use the provided API Gateway URL for programmatic access
-3. **Cognito**: Use the Cognito domain for user authentication
-
-## 📋 Demo Script (3-minute walkthrough)
-
-### 1. Login (15 seconds)
-- Navigate to the admin dashboard
-- Sign in using AWS Cognito authentication
-- Show the main dashboard with metrics cards
-
-### 2. Upload Invoice (30 seconds)
-- Go to the "Invoices" page
-- Upload one of the sample invoice files (US, UK, or India)
-- Watch real-time processing in the dashboard logs
-
-### 3. Review Results (45 seconds)
-- View the processed invoice in the invoice list
-- Click "View Details" to see validation results
-- Show tax calculations and currency conversions
-- Download the generated PDF invoice
-
-### 4. Configuration (30 seconds)
-- Navigate to "Control Panel"
-- Adjust auto-approval thresholds
-- Toggle tax regions (US, UK, India)
-- Save configuration changes
-
-### 5. Monitoring (30 seconds)
-- Show CloudWatch dashboard metrics
-- Demonstrate real-time log streaming
-- Highlight error rate and processing time charts
-
-## 📊 ROI Metrics
-
-Based on typical invoice processing workflows:
-
-- **⏱️ Processing Time**: 70% faster than manual processing
-- **🔍 Error Reduction**: 85% fewer validation errors
-- **💰 Cost Savings**: 60% reduction in invoice processing costs
-- **⚡ Scalability**: Handles 10,000+ invoices per day with auto-scaling
-- **🌍 Global Reach**: Supports 50+ countries with localized tax rules
-
-## 🔒 Security & Compliance
-
-- **Encryption**: All data encrypted at rest (AES-256) and in transit (TLS 1.3)
-- **Access Control**: Least-privilege IAM roles and policies
-- **Audit Trail**: Complete logging of all invoice processing activities
-- **GDPR Ready**: Multi-region deployment options for data residency
-- **API Security**: JWT-based authentication with Cognito integration
-
-## 💰 Cost Optimization
-
-**Estimated Monthly Costs (Development Environment):**
-- Lambda: ~$0.50 (pay-per-invocation)
-- Bedrock: ~$2.00 (pay-per-token)
-- DynamoDB: ~$1.00 (on-demand)
-- S3: ~$0.10 (storage + requests)
-- **Total: ~$3.60/month** (near-zero when idle)
-
-**Production Scale (10,000 invoices/month):**
-- Lambda: ~$5.00
-- Bedrock: ~$20.00
-- DynamoDB: ~$10.00
-- S3: ~$1.00
-- **Total: ~$36.00/month**
-
-## 🧪 Testing
-
-### Sample Data
-Test the system with provided sample invoices:
-- `sample-data/invoice-us.json` - US invoice with state sales tax
+- `sample-data/invoice-us.json` - US invoice with New York sales tax
 - `sample-data/invoice-uk.json` - UK invoice with VAT
 - `sample-data/invoice-india.json` - Indian invoice with GST
 
-### Manual Testing
-1. Upload sample invoice via S3 console or API
-2. Monitor processing in CloudWatch logs
-3. Verify PDF generation and download
-4. Test error scenarios and retry logic
+Upload these files through the web interface or S3 console to validate processing functionality.
 
-## 🤝 Contributing
+## Security and Compliance
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+- **Data Encryption**: AES-256 encryption at rest and TLS 1.3 in transit
+- **Access Control**: Least-privilege IAM roles and policies
+- **Authentication**: JWT-based authentication with AWS Cognito
+- **Audit Logging**: Complete processing activity logging
+- **Network Security**: VPC deployment options for production environments
 
-## 📄 License
+## Cost Optimization
 
-This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)**.
+**Development Environment (estimated monthly costs):**
+- AWS Lambda: $0.50 (pay-per-invocation)
+- Amazon Bedrock: $2.00 (pay-per-token)
+- Amazon DynamoDB: $1.00 (on-demand pricing)
+- Amazon S3: $0.10 (storage and requests)
+- **Total: $3.60/month** (near-zero when idle)
 
-### 📋 License Summary
+**Production Scale (10,000 invoices/month):**
+- AWS Lambda: $5.00
+- Amazon Bedrock: $20.00
+- Amazon DynamoDB: $10.00
+- Amazon S3: $1.00
+- **Total: $36.00/month**
 
-**✅ Allowed for Non-Commercial Use:**
-- Educational and research purposes
-- Personal projects and learning
-- Non-profit organizations
-- Sharing and adaptation with attribution
+## License
 
-**❌ Not Allowed for Commercial Use:**
-- Any commercial software development
-- For-profit business applications
-- Commercial services or products
-- Monetized deployments
+This project is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0).
 
-### 📝 Attribution Requirements
+For commercial licensing inquiries, contact licensing@globalinvoiceai.com.
 
-When using this software for non-commercial purposes, provide attribution:
+## Support
 
-```
-GlobalInvoiceAI Agent - AI-Powered Invoice Management System
-Copyright (c) 2024 GlobalInvoiceAI
-Licensed under CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/)
-```
-
-### 💼 Commercial Licensing
-
-For commercial use, please contact:
-- **Email**: licensing@globalinvoiceai.com
-- **Purpose**: Commercial licensing inquiries
-
----
-
-**Full license text:** See the [LICENSE](LICENSE) file for complete terms and conditions.
-
-**License URL:** https://creativecommons.org/licenses/by-nc/4.0/
-
-## 🙏 Acknowledgments
-
-- **Amazon Bedrock** for providing state-of-the-art AI capabilities
-- **Strands Framework** for simplifying agent development
-- **AWS Serverless** for enabling cost-effective cloud solutions
-- **React Bootstrap** for the beautiful UI components
-
-## 📞 Support
-
-For questions or issues:
+For technical support and questions:
 - Create an issue in the GitHub repository
+- Review the deployment documentation in `docs/DEPLOYMENT.md`
 - Contact the development team at support@globalinvoiceai.com
-
----
-
-**Built with ❤️ using AWS Serverless and AI technologies**
