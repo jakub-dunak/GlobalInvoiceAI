@@ -158,14 +158,16 @@ def handle_api_request(event, context):
             return get_invoices(query_parameters)
         elif path == '/invoices' and http_method == 'POST':
             return upload_invoice(event.get('body', '{}'))
-        elif path.startswith('/invoices/') and http_method == 'GET':
-            invoice_id = path_parameters.get('invoiceId')
-            if 'pdf' in query_parameters and query_parameters['pdf'] == 'true':
-                return get_invoice_pdf(invoice_id)
-            else:
-                return get_invoice(invoice_id)
+        elif path == '/invoices/upload' and http_method == 'POST':
+            return upload_invoice(event.get('body', '{}'))
         elif path == '/invoices/stats' and http_method == 'GET':
             return get_invoice_stats()
+        elif path.startswith('/invoices/') and '/pdf' in path and http_method == 'GET':
+            invoice_id = path_parameters.get('invoiceId')
+            return get_invoice_pdf(invoice_id)
+        elif path.startswith('/invoices/') and http_method == 'GET':
+            invoice_id = path_parameters.get('invoiceId')
+            return get_invoice(invoice_id)
         elif path == '/logs' and http_method == 'GET':
             return get_processing_logs(query_parameters)
         elif path == '/config' and http_method == 'GET':
@@ -211,7 +213,7 @@ def get_invoices(params):
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": os.environ.get('AMPLIFY_DOMAIN', '*'),
+                "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
             },
@@ -277,7 +279,7 @@ def upload_invoice(body):
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": os.environ.get('AMPLIFY_DOMAIN', '*'),
+                "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
             },
@@ -303,7 +305,7 @@ def get_invoice(invoice_id):
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": os.environ.get('AMPLIFY_DOMAIN', '*'),
+                "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET,OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
             },
@@ -354,7 +356,7 @@ def get_invoice_pdf(invoice_id):
             "headers": {
                 "Content-Type": "application/pdf",
                 "Content-Disposition": f"attachment; filename={invoice_id}.pdf",
-                "Access-Control-Allow-Origin": os.environ.get('AMPLIFY_DOMAIN', '*'),
+                "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET,OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
             },
@@ -384,7 +386,7 @@ def get_invoice_stats():
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": os.environ.get('AMPLIFY_DOMAIN', '*'),
+                "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET,OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
             },
@@ -419,7 +421,7 @@ def get_processing_logs(params):
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": os.environ.get('AMPLIFY_DOMAIN', '*'),
+                "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET,OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
             },
@@ -457,7 +459,7 @@ def get_system_config():
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": os.environ.get('AMPLIFY_DOMAIN', '*'),
+                "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET,PUT,OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
             },
@@ -507,7 +509,7 @@ def update_system_config(body):
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": os.environ.get('AMPLIFY_DOMAIN', '*'),
+                "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET,PUT,OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
             },
@@ -552,7 +554,7 @@ def get_metrics():
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": os.environ.get('AMPLIFY_DOMAIN', '*'),
+                "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET,OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
             },
