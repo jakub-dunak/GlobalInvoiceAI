@@ -2,16 +2,16 @@
 
 /**
  * Configures the frontend aws-exports.js with CloudFormation outputs
- * Usage: node scripts/configure-frontend.js <user-pool-id> <user-pool-client-id> [region] [environment]
+ * Usage: node scripts/configure-frontend.js <user-pool-id> <user-pool-client-id> <region> [api-gateway-url] [environment]
  */
 
 const fs = require('fs');
 const path = require('path');
 
-const [,, userPoolId, userPoolClientId, region, environment = 'production'] = process.argv;
+const [,, userPoolId, userPoolClientId, region, apiGatewayUrl, environment = 'production'] = process.argv;
 
 if (!userPoolId || !userPoolClientId || !region) {
-  console.error('Usage: node scripts/configure-frontend.js <user-pool-id> <user-pool-client-id> <region> [environment]');
+  console.error('Usage: node scripts/configure-frontend.js <user-pool-id> <user-pool-client-id> <region> [api-gateway-url] [environment]');
   process.exit(1);
 }
 
@@ -43,7 +43,7 @@ const config = {
   "aws_cognito_verification_mechanisms": [
     "EMAIL"
   ],
-  "aws_appsync_graphqlEndpoint": "",
+  "aws_appsync_graphqlEndpoint": apiGatewayUrl || "",
   "aws_appsync_region": region,
   "aws_appsync_authenticationType": "AMAZON_COGNITO_USER_POOLS"
 };
@@ -60,3 +60,5 @@ console.log('✅ Frontend configuration updated successfully!');
 console.log(`   User Pool ID: ${userPoolId}`);
 console.log(`   Client ID: ${userPoolClientId}`);
 console.log(`   Region: ${region}`);
+console.log(`   API Gateway URL: ${apiGatewayUrl || 'Not provided'}`);
+console.log(`   Environment: ${environment}`);

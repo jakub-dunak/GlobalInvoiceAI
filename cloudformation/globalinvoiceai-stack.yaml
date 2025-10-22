@@ -466,6 +466,7 @@ Resources:
           TAX_RATES_TABLE: !Ref TaxRatesCache
           LOGS_TABLE: !Ref ProcessingLogsTable
           PROCESSED_BUCKET: !Ref ProcessedInvoicesBucket
+          UPLOAD_BUCKET: !Ref InvoiceUploadBucket
           PDF_GENERATOR_FUNCTION: !Ref PDFGeneratorFunction
           AGENTCORE_RUNTIME_PARAM: !Sub '/globalinvoiceai/agentcore/runtime-arn'
           ENVIRONMENT: !Ref Environment

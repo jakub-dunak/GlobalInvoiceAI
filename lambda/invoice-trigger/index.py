@@ -221,10 +221,61 @@ def get_invoices(params):
 def upload_invoice(body):
     """Handle manual invoice upload"""
     try:
-        # For now, return not implemented - this would need S3 upload handling
+        # Parse the multipart form data or JSON body
+        if body.startswith('{'):
+            # JSON body (fallback for testing)
+            invoice_data = json.loads(body)
+        else:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "Multipart form data expected"})
+            }
+
+        # Generate invoice ID and upload to S3
+        invoice_id = str(uuid.uuid4())
+        s3_key = f"uploads/{invoice_id}.json"
+
+        # Upload to S3
+        upload_bucket = os.environ.get('UPLOAD_BUCKET', 'globalinvoiceai-invoice-upload-dev')
+        s3_client.put_object(
+            Bucket=upload_bucket,
+            Key=s3_key,
+            Body=json.dumps(invoice_data),
+            ContentType='application/json'
+        )
+
+        # Store initial record in DynamoDB
+        invoices_table = dynamodb.Table(os.environ['INVOICES_TABLE'])
+        invoices_table.put_item(Item={
+            'InvoiceId': invoice_id,
+            'Status': 'UPLOADED',
+            'OriginalFileKey': s3_key,
+            'InvoiceData': invoice_data,
+            'CreatedAt': datetime.utcnow().isoformat(),
+            'UpdatedAt': datetime.utcnow().isoformat()
+        })
+
+        # Send CloudWatch metric
+        cloudwatch.put_metric_data(
+            Namespace='GlobalInvoiceAI',
+            MetricData=[{
+                'MetricName': 'InvoiceUploaded',
+                'Value': 1,
+                'Unit': 'Count',
+                'Dimensions': [
+                    {'Name': 'Environment', 'Value': os.environ['ENVIRONMENT']}
+                ]
+            }]
+        )
+
         return {
-            "statusCode": 501,
-            "body": json.dumps({"error": "Manual upload not implemented"})
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({
+                "message": "Invoice uploaded successfully",
+                "invoiceId": invoice_id,
+                "status": "UPLOADED"
+            })
         }
     except Exception as e:
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
@@ -351,25 +402,89 @@ def get_processing_logs(params):
 
 def get_system_config():
     """Get system configuration"""
-    # Return default config for now
-    return {
-        "statusCode": 200,
-        "headers": {"Content-Type": "application/json"},
-        "body": json.dumps({
-            "supportedCurrencies": ["USD", "EUR", "GBP", "INR"],
-            "taxRegions": ["US", "UK", "IN"],
-            "maxFileSize": "10MB"
-        })
-    }
+    try:
+        # Try to get configuration from Parameter Store
+        config_param_name = f"/globalinvoiceai/config/{os.environ['ENVIRONMENT']}"
+
+        try:
+            response = ssm.get_parameter(Name=config_param_name)
+            config = json.loads(response['Parameter']['Value'])
+        except ssm.exceptions.ParameterNotFound:
+            # Return default configuration if not found
+            config = {
+                "autoApprovalThreshold": 10000,
+                "enabledCountries": ["US", "UK", "IN"],
+                "maxProcessingTime": 300,
+                "enablePDFGeneration": True,
+                "enableEmailNotifications": False,
+                "emailRecipients": "",
+                "retryFailedInvoices": True,
+                "maxRetries": 3,
+                "supportedCurrencies": ["USD", "EUR", "GBP", "INR"],
+                "taxRegions": ["US", "UK", "IN"],
+                "maxFileSize": "10MB"
+            }
+
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(config)
+        }
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})})
 
 def update_system_config(body):
     """Update system configuration"""
-    # For now, just acknowledge the request
-    return {
-        "statusCode": 200,
-        "headers": {"Content-Type": "application/json"},
-        "body": json.dumps({"message": "Configuration updated"})
-    }
+    try:
+        # Parse the configuration data
+        config_data = json.loads(body)
+
+        # Validate required fields (basic validation)
+        required_fields = ['autoApprovalThreshold', 'enabledCountries', 'maxProcessingTime']
+        for field in required_fields:
+            if field not in config_data:
+                return {
+                    "statusCode": 400,
+                    "body": json.dumps({"error": f"Missing required field: {field}"})
+                }
+
+        # Store configuration in Parameter Store
+        config_param_name = f"/globalinvoiceai/config/{os.environ['ENVIRONMENT']}"
+
+        ssm.put_parameter(
+            Name=config_param_name,
+            Value=json.dumps(config_data),
+            Type='String',
+            Overwrite=True,
+            Description='GlobalInvoiceAI system configuration'
+        )
+
+        # Log configuration change
+        logs_table = dynamodb.Table(os.environ['LOGS_TABLE'])
+        logs_table.put_item(Item={
+            'LogId': str(uuid.uuid4()),
+            'Timestamp': datetime.utcnow().isoformat(),
+            'Level': 'INFO',
+            'Message': 'System configuration updated',
+            'Source': 'ConfigurationUpdate',
+            'Details': config_data
+        })
+
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({
+                "message": "Configuration updated successfully",
+                "config": config_data
+            })
+        }
+    except json.JSONDecodeError:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "Invalid JSON in request body"})
+        }
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})})
 
 def get_metrics():
     """Get CloudWatch metrics"""

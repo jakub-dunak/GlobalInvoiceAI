@@ -352,7 +352,7 @@ jobs:
       - name: Configure frontend with Cognito values
         working-directory: frontend
         run: |
-          node ../scripts/configure-frontend.js "${{ needs.package-and-deploy.outputs.user-pool-id }}" "${{ needs.package-and-deploy.outputs.user-pool-client-id }}" "${{ env.AWS_REGION }}" "${{ env.ENVIRONMENT }}"
+          node ../scripts/configure-frontend.js "${{ needs.package-and-deploy.outputs.user-pool-id }}" "${{ needs.package-and-deploy.outputs.user-pool-client-id }}" "${{ env.AWS_REGION }}" "${{ needs.package-and-deploy.outputs.api-gateway-url }}" "${{ env.ENVIRONMENT }}"
 
       - name: Build frontend
         working-directory: frontend

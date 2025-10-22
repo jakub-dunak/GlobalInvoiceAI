@@ -4,7 +4,21 @@ import { Auth } from 'aws-amplify';
 // API service for GlobalInvoiceAI
 class ApiService {
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_URL || 'https://your-api-gateway-url.execute-api.us-west-2.amazonaws.com/dev';
+    let baseURL = 'https://your-api-gateway-url.execute-api.us-west-2.amazonaws.com/dev'; // Default placeholder
+
+    try {
+      // Try to import aws-exports if it exists (after deployment)
+      const awsconfig = require('../aws-exports').default;
+      if (awsconfig?.aws_appsync_graphqlEndpoint) {
+        baseURL = awsconfig.aws_appsync_graphqlEndpoint.replace('/graphql', '');
+      }
+    } catch (error) {
+      // aws-exports.js doesn't exist yet (before deployment)
+      console.warn('aws-exports.js not found, using placeholder API URL. Update with deployment values.');
+      baseURL = process.env.REACT_APP_API_URL || baseURL;
+    }
+
+    this.baseURL = baseURL;
   }
 
   // Get authentication headers
