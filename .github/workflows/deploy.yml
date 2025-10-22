@@ -197,9 +197,9 @@ jobs:
 
           aws s3 cp packaged-template.yaml s3://${{ env.DEPLOYMENT_BUCKET }}/$TEMPLATE_S3_KEY --region us-west-2
 
-          # Deploy the stack using S3 URL (construct URL inline to avoid variable expansion issues)
+          # Deploy the stack using S3 URL format required by AWS CLI
           aws cloudformation deploy \
-            --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
+            --template-url "s3://${{ env.DEPLOYMENT_BUCKET }}/$TEMPLATE_S3_KEY" \
             --stack-name ${{ steps.stack-config.outputs.stack-name }} \
             --parameter-overrides \
               Environment=${{ env.ENVIRONMENT }} \
