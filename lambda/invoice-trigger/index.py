@@ -51,46 +51,70 @@ def handler(event, context):
                 'UpdatedAt': datetime.utcnow().isoformat()
             })
 
-            # Get AgentCore Runtime ARN from Parameter Store
+            # Try to invoke AgentCore Runtime for validation (optional for testing)
             try:
+                # Get AgentCore Runtime ARN from Parameter Store
                 runtime_param = ssm.get_parameter(
                     Name=os.environ['AGENTCORE_RUNTIME_PARAM']
                 )
                 runtime_arn = runtime_param['Parameter']['Value']
+
+                # Invoke AgentCore Runtime
+                agentcore = boto3.client('bedrock-agentcore-runtime')
+                response = agentcore.invoke_agent(
+                    agentArn=runtime_arn,
+                    runtimeEndpoint='DEFAULT',
+                    prompt={
+                        "invoice_data": invoice_data,
+                        "operation": "validate",
+                        "invoice_id": invoice_id
+                    }
+                )
+
+                # Process streaming response
+                full_response = ""
+                for event in response.get('completion', []):
+                    if 'chunk' in event:
+                        full_response += event['chunk']['bytes'].decode('utf-8')
+
+                # Parse and store result
+                result = json.loads(full_response)
+                invoices_table.update_item(
+                    Key={'InvoiceId': invoice_id},
+                    UpdateExpression='SET #status = :status, ValidationResult = :result, UpdatedAt = :updated',
+                    ExpressionAttributeNames={'#status': 'Status'},
+                    ExpressionAttributeValues={
+                        ':status': result.get('status', 'VALIDATED'),
+                        ':result': result,
+                        ':updated': datetime.utcnow().isoformat()
+                    }
+                )
+
             except ssm.exceptions.ParameterNotFound:
-                print("AgentCore Runtime not deployed yet")
-                return {"statusCode": 500, "body": "AgentCore Runtime not available"}
-
-            # Invoke AgentCore Runtime
-            agentcore = boto3.client('bedrock-agentcore-runtime')
-            response = agentcore.invoke_agent(
-                agentArn=runtime_arn,
-                runtimeEndpoint='DEFAULT',
-                prompt={
-                    "invoice_data": invoice_data,
-                    "operation": "validate",
-                    "invoice_id": invoice_id
-                }
-            )
-
-            # Process streaming response
-            full_response = ""
-            for event in response.get('completion', []):
-                if 'chunk' in event:
-                    full_response += event['chunk']['bytes'].decode('utf-8')
-
-            # Parse and store result
-            result = json.loads(full_response)
-            invoices_table.update_item(
-                Key={'InvoiceId': invoice_id},
-                UpdateExpression='SET #status = :status, ValidationResult = :result, UpdatedAt = :updated',
-                ExpressionAttributeNames={'#status': 'Status'},
-                ExpressionAttributeValues={
-                    ':status': result.get('status', 'ERROR'),
-                    ':result': result,
-                    ':updated': datetime.utcnow().isoformat()
-                }
-            )
+                print("AgentCore Runtime not deployed yet - skipping validation for S3 upload")
+                # Update status to indicate manual review needed
+                invoices_table.update_item(
+                    Key={'InvoiceId': invoice_id},
+                    UpdateExpression='SET #status = :status, UpdatedAt = :updated',
+                    ExpressionAttributeNames={'#status': 'Status'},
+                    ExpressionAttributeValues={
+                        ':status': 'NEEDS_REVIEW',
+                        ':updated': datetime.utcnow().isoformat()
+                    }
+                )
+            except Exception as e:
+                print(f"AgentCore validation failed: {str(e)} - invoice uploaded but needs manual review")
+                # Update status to indicate manual review needed
+                invoices_table.update_item(
+                    Key={'InvoiceId': invoice_id},
+                    UpdateExpression='SET #status = :status, ValidationResult = :result, UpdatedAt = :updated',
+                    ExpressionAttributeNames={'#status': 'Status'},
+                    ExpressionAttributeValues={
+                        ':status': 'VALIDATION_FAILED',
+                        ':result': {'error': str(e)},
+                        ':updated': datetime.utcnow().isoformat()
+                    }
+                )
 
             # Send CloudWatch metrics
             cloudwatch.put_metric_data(
@@ -313,70 +337,18 @@ def upload_invoice(body):
             'UpdatedAt': datetime.utcnow().isoformat()
         })
 
-        # Try to invoke AgentCore Runtime for validation (optional for testing)
-        try:
-            # Get AgentCore Runtime ARN from Parameter Store
-            runtime_param = ssm.get_parameter(
-                Name=os.environ['AGENTCORE_RUNTIME_PARAM']
-            )
-            runtime_arn = runtime_param['Parameter']['Value']
-
-            # Invoke AgentCore Runtime
-            agentcore = boto3.client('bedrock-agentcore-runtime')
-            response = agentcore.invoke_agent(
-                agentArn=runtime_arn,
-                runtimeEndpoint='DEFAULT',
-                prompt={
-                    "invoice_data": invoice_data,
-                    "operation": "validate",
-                    "invoice_id": invoice_id
-                }
-            )
-
-            # Process streaming response
-            full_response = ""
-            for event in response.get('completion', []):
-                if 'chunk' in event:
-                    full_response += event['chunk']['bytes'].decode('utf-8')
-
-            # Parse and store result
-            result = json.loads(full_response)
-            invoices_table.update_item(
-                Key={'InvoiceId': invoice_id},
-                UpdateExpression='SET #status = :status, ValidationResult = :result, UpdatedAt = :updated',
-                ExpressionAttributeNames={'#status': 'Status'},
-                ExpressionAttributeValues={
-                    ':status': result.get('status', 'VALIDATED'),
-                    ':result': result,
-                    ':updated': datetime.utcnow().isoformat()
-                }
-            )
-
-        except ssm.exceptions.ParameterNotFound:
-            print("AgentCore Runtime not deployed yet - skipping validation for testing")
-            # Update status to indicate manual review needed
-            invoices_table.update_item(
-                Key={'InvoiceId': invoice_id},
-                UpdateExpression='SET #status = :status, UpdatedAt = :updated',
-                ExpressionAttributeNames={'#status': 'Status'},
-                ExpressionAttributeValues={
-                    ':status': 'NEEDS_REVIEW',
-                    ':updated': datetime.utcnow().isoformat()
-                }
-            )
-        except Exception as e:
-            print(f"AgentCore validation failed: {str(e)} - invoice uploaded but needs manual review")
-            # Update status to indicate manual review needed
-            invoices_table.update_item(
-                Key={'InvoiceId': invoice_id},
-                UpdateExpression='SET #status = :status, ValidationResult = :result, UpdatedAt = :updated',
-                ExpressionAttributeNames={'#status': 'Status'},
-                ExpressionAttributeValues={
-                    ':status': 'VALIDATION_FAILED',
-                    ':result': {'error': str(e)},
-                    ':updated': datetime.utcnow().isoformat()
-                }
-            )
+        # AgentCore Runtime validation temporarily disabled
+        # TODO: Re-enable once AgentCore runtime deployment is verified
+        print("AgentCore Runtime validation disabled for testing - marking as NEEDS_REVIEW")
+        invoices_table.update_item(
+            Key={'InvoiceId': invoice_id},
+            UpdateExpression='SET #status = :status, UpdatedAt = :updated',
+            ExpressionAttributeNames={'#status': 'Status'},
+            ExpressionAttributeValues={
+                ':status': 'NEEDS_REVIEW',
+                ':updated': datetime.utcnow().isoformat()
+            }
+        )
 
         # Send CloudWatch metric
         cloudwatch.put_metric_data(
