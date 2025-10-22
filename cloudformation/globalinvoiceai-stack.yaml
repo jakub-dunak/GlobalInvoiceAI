@@ -14,8 +14,6 @@ Parameters:
       - prod
     Description: Environment name for resource naming
 
-  # ExternalAPIKeysSecret parameter removed - using hardcoded values for demo
-
   CognitoDomainPrefix:
     Type: String
     Description: Unique domain prefix for Cognito hosted UI (auto-generated during deployment)
@@ -25,9 +23,7 @@ Parameters:
     Description: S3 bucket name for storing Lambda function packages
 
 Resources:
-  # ========================================
   # S3 BUCKETS
-  # ========================================
 
   InvoiceUploadBucket:
     Type: AWS::S3::Bucket
@@ -98,9 +94,7 @@ Resources:
         - Key: Application
           Value: GlobalInvoiceAI
 
-  # ========================================
   # DYNAMODB TABLES
-  # ========================================
 
   InvoicesTable:
     Type: AWS::DynamoDB::Table
@@ -207,9 +201,7 @@ Resources:
         - Key: Application
           Value: GlobalInvoiceAI
 
-  # ========================================
   # ECR REPOSITORY FOR AGENTCORE
-  # ========================================
 
   GlobalInvoiceAIAgentRepo:
     Type: AWS::ECR::Repository
@@ -244,15 +236,7 @@ Resources:
         - Key: Application
           Value: GlobalInvoiceAI
 
-  # ========================================
-  # SECRETS MANAGER (REMOVED - USING HARDCODED VALUES)
-  # ========================================
-  # External API keys are no longer needed as we use hardcoded values for demo
-  # In production, you would restore this for real-time API integration
-
-  # ========================================
   # IAM ROLES
-  # ========================================
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -303,7 +287,6 @@ Resources:
                   - !Sub '${InvoicesTable.Arn}/index/*'
                   - !Sub '${TaxRatesCache.Arn}/index/*'
                   - !Sub '${ProcessingLogsTable.Arn}/index/*'
-        # SecretsManager access removed - using hardcoded values for demo
         - PolicyName: AgentCoreAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -387,7 +370,6 @@ Resources:
                   - !Sub '${InvoicesTable.Arn}/index/*'
                   - !Sub '${TaxRatesCache.Arn}/index/*'
                   - !Sub '${ProcessingLogsTable.Arn}/index/*'
-        # SecretsManager access removed - using hardcoded values for demo
         - PolicyName: CloudWatchLogs
           PolicyDocument:
             Version: '2012-10-17'
@@ -447,9 +429,7 @@ Resources:
                   - ssm:PutParameter
                 Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/globalinvoiceai/*'
 
-  # ========================================
   # LAMBDA FUNCTIONS
-  # ========================================
 
   InvoiceTriggerFunction:
     Type: AWS::Lambda::Function
@@ -531,9 +511,7 @@ Resources:
         - Key: Application
           Value: GlobalInvoiceAI
 
-  # ========================================
   # EVENTBRIDGE RULE FOR S3 TRIGGERS
-  # ========================================
 
   InvoiceUploadEventRule:
     Type: AWS::Events::Rule
@@ -565,9 +543,7 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt InvoiceUploadEventRule.Arn
 
-  # ========================================
   # COGNITO USER POOL
-  # ========================================
 
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -614,13 +590,8 @@ Resources:
     Properties:
       UserPoolId: !Ref UserPool
       Domain: !Sub '${CognitoDomainPrefix}-${Environment}'
-    # IMPORTANT: Domain must be globally unique and deterministic
-    # CognitoDomainPrefix is generated deterministically in CI/CD to ensure
-    # the same domain is used across deployments (domains cannot be updated in-place)
 
-  # ========================================
   # API GATEWAY
-  # ========================================
 
   RestApi:
     Type: AWS::ApiGateway::RestApi
@@ -1317,9 +1288,7 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # ========================================
   # AMPLIFY APP
-  # ========================================
 
   AmplifyApp:
     Type: AWS::Amplify::App
@@ -1377,9 +1346,7 @@ Resources:
         - Name: REACT_APP_REGION
           Value: !Ref AWS::Region
 
-  # ========================================
   # CLOUDWATCH DASHBOARD
-  # ========================================
 
   CloudWatchDashboard:
     Type: AWS::CloudWatch::Dashboard
@@ -1441,9 +1408,7 @@ Resources:
           ]
         }
 
-  # ========================================
   # OUTPUTS
-  # ========================================
 
 Outputs:
   InvoiceUploadBucketName:
