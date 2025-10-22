@@ -470,6 +470,7 @@ Resources:
           PDF_GENERATOR_FUNCTION: !Ref PDFGeneratorFunction
           AGENTCORE_RUNTIME_PARAM: !Sub '/globalinvoiceai/agentcore/runtime-arn'
           ENVIRONMENT: !Ref Environment
+          AMPLIFY_DOMAIN: !Sub 'https://${AmplifyApp.DefaultDomain}'
       Code:
         S3Bucket: !Ref DeploymentArtifactsBucket
         S3Key: !Sub 'lambda/invoice-trigger-${Environment}.zip'
@@ -493,6 +494,7 @@ Resources:
           INVOICES_TABLE: !Ref InvoicesTable
           PROCESSED_BUCKET: !Ref ProcessedInvoicesBucket
           ENVIRONMENT: !Ref Environment
+          AMPLIFY_DOMAIN: !Sub 'https://${AmplifyApp.DefaultDomain}'
       Code:
         S3Bucket: !Ref DeploymentArtifactsBucket
         S3Key: !Sub 'lambda/pdf-generator-${Environment}.zip'
@@ -685,6 +687,12 @@ Resources:
       ResourceId: !Ref InvoicesResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: !Sub "'https://${AmplifyApp.DefaultDomain}'"
+            method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,OPTIONS'"
+            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
       Integration:
         Type: MOCK
         RequestTemplates:
@@ -692,17 +700,11 @@ Resources:
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${AmplifyApp.DefaultDomain}'"
               method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,OPTIONS'"
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
             ResponseTemplates:
               application/json: ''
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: "'*'"
-            method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,OPTIONS'"
-            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
 
   InvoiceOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -711,6 +713,12 @@ Resources:
       ResourceId: !Ref InvoiceResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: !Sub "'https://${AmplifyApp.DefaultDomain}'"
+            method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
       Integration:
         Type: MOCK
         RequestTemplates:
@@ -718,17 +726,11 @@ Resources:
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${AmplifyApp.DefaultDomain}'"
               method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
             ResponseTemplates:
               application/json: ''
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: "'*'"
-            method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
 
   StatsOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -737,6 +739,12 @@ Resources:
       ResourceId: !Ref StatsResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: !Sub "'https://${AmplifyApp.DefaultDomain}'"
+            method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
       Integration:
         Type: MOCK
         RequestTemplates:
@@ -744,17 +752,11 @@ Resources:
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${AmplifyApp.DefaultDomain}'"
               method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
             ResponseTemplates:
               application/json: ''
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: "'*'"
-            method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
 
   LogsOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -763,6 +765,12 @@ Resources:
       ResourceId: !Ref LogsResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: !Sub "'https://${AmplifyApp.DefaultDomain}'"
+            method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
       Integration:
         Type: MOCK
         RequestTemplates:
@@ -770,17 +778,11 @@ Resources:
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${AmplifyApp.DefaultDomain}'"
               method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
             ResponseTemplates:
               application/json: ''
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: "'*'"
-            method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
 
   ConfigOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -789,6 +791,12 @@ Resources:
       ResourceId: !Ref ConfigResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: "'*'"
+            method.response.header.Access-Control-Allow-Methods: "'GET,PUT,OPTIONS'"
+            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
       Integration:
         Type: MOCK
         RequestTemplates:
@@ -798,15 +806,9 @@ Resources:
             ResponseParameters:
               method.response.header.Access-Control-Allow-Origin: "'*'"
               method.response.header.Access-Control-Allow-Methods: "'GET,PUT,OPTIONS'"
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
             ResponseTemplates:
               application/json: ''
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: "'*'"
-            method.response.header.Access-Control-Allow-Methods: "'GET,PUT,OPTIONS'"
-            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
 
   MetricsOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -815,6 +817,12 @@ Resources:
       ResourceId: !Ref MetricsResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: !Sub "'https://${AmplifyApp.DefaultDomain}'"
+            method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
       Integration:
         Type: MOCK
         RequestTemplates:
@@ -822,17 +830,11 @@ Resources:
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${AmplifyApp.DefaultDomain}'"
               method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
             ResponseTemplates:
               application/json: ''
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: "'*'"
-            method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
 
   # API Methods and Integrations
   GetInvoicesMethod:
