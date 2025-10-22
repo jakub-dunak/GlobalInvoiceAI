@@ -1078,44 +1078,7 @@ Resources:
         RequestTemplates:
           application/json: '{"statusCode": 200}'
 
-  ApiGatewayDeployment:
-    Type: AWS::ApiGateway::Deployment
-    DependsOn:
-      - ApiGatewayRootMethod
-      - InvoicesOptionsMethod
-      - InvoiceOptionsMethod
-      - StatsOptionsMethod
-      - LogsOptionsMethod
-      - ConfigOptionsMethod
-      - MetricsOptionsMethod
-      - UploadOptionsMethod
-      - PdfOptionsMethod
-      - GetInvoicesMethod
-      - PostInvoicesMethod
-      - GetInvoiceMethod
-      - GetInvoicesStatsMethod
-      - GetLogsMethod
-      - GetConfigMethod
-      - PutConfigMethod
-      - GetMetricsMethod
-      - PostUploadMethod
-      - GetPdfMethod
-    Properties:
-      RestApiId: !Ref RestApi
-      Description: !Sub 'Deployment ${AWS::StackName} at ${AWS::StackId}'
-
-  ApiGatewayStage:
-    Type: AWS::ApiGateway::Stage
-    Properties:
-      StageName: !Ref Environment
-      RestApiId: !Ref RestApi
-      DeploymentId: !Ref ApiGatewayDeployment
-      Description: !Sub '${Environment} stage for ${AWS::StackName}'
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-
-  # Gateway Responses for CORS on errors
+  # Gateway Responses for CORS on errors - MUST be before Deployment
   GatewayResponse4xx:
     Type: AWS::ApiGateway::GatewayResponse
     Properties:
@@ -1155,6 +1118,47 @@ Resources:
         gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
         gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiGatewayRootMethod
+      - InvoicesOptionsMethod
+      - InvoiceOptionsMethod
+      - StatsOptionsMethod
+      - LogsOptionsMethod
+      - ConfigOptionsMethod
+      - MetricsOptionsMethod
+      - UploadOptionsMethod
+      - PdfOptionsMethod
+      - GetInvoicesMethod
+      - PostInvoicesMethod
+      - GetInvoiceMethod
+      - GetInvoicesStatsMethod
+      - GetLogsMethod
+      - GetConfigMethod
+      - PutConfigMethod
+      - GetMetricsMethod
+      - PostUploadMethod
+      - GetPdfMethod
+      - GatewayResponse4xx
+      - GatewayResponse5xx
+      - GatewayResponseUnauthorized
+      - GatewayResponseAccessDenied
+    Properties:
+      RestApiId: !Ref RestApi
+      Description: !Sub 'Deployment with Gateway Responses ${AWS::StackName}'
+
+  ApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      StageName: !Ref Environment
+      RestApiId: !Ref RestApi
+      DeploymentId: !Ref ApiGatewayDeployment
+      Description: !Sub '${Environment} stage for ${AWS::StackName}'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
 
   # ========================================
   # AMPLIFY APP
