@@ -25,9 +25,10 @@ class ApiService {
   async getAuthHeaders() {
     try {
       const session = await Auth.currentSession();
-      if (session?.accessToken?.jwtToken) {
+      // API Gateway Cognito Authorizer expects the ID token, not the access token
+      if (session?.idToken?.jwtToken) {
         return {
-          'Authorization': `Bearer ${session.accessToken.jwtToken}`,
+          'Authorization': session.idToken.jwtToken,
           'Content-Type': 'application/json'
         };
       }
