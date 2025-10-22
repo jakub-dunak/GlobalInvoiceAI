@@ -212,26 +212,52 @@ jobs:
               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
               --region us-west-2
           else
-            echo "Updating existing stack..."
-            # Capture the output of update-stack to check for "No updates" error
-            UPDATE_OUTPUT=$(aws cloudformation update-stack \
+            echo "Checking if stack update is needed..."
+            # Create a changeset to check if updates are needed without actually updating
+            CHANGESET_NAME="check-update-$(date +%s)"
+
+            aws cloudformation create-change-set \
               --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
               --stack-name ${{ steps.stack-config.outputs.stack-name }} \
+              --change-set-name $CHANGESET_NAME \
               --parameters \
                 ParameterKey=Environment,ParameterValue=${{ env.ENVIRONMENT }} \
                 ParameterKey=CognitoDomainPrefix,ParameterValue=${{ steps.stack-config.outputs.cognito-prefix }} \
                 ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
-              --region us-west-2 2>&1)
+              --region us-west-2
 
-            if [ $? -eq 0 ]; then
-              echo "Stack update completed successfully"
-            elif echo "$UPDATE_OUTPUT" | grep -q "No updates are to be performed"; then
+            # Wait a moment for changeset to be created
+            sleep 5
+
+            # Check if changeset has any changes
+            CHANGES=$(aws cloudformation describe-change-set \
+              --stack-name ${{ steps.stack-config.outputs.stack-name }} \
+              --change-set-name $CHANGESET_NAME \
+              --region us-west-2 \
+              --query 'length(Changes)' \
+              --output text 2>/dev/null || echo "0")
+
+            # Clean up the changeset
+            aws cloudformation delete-change-set \
+              --stack-name ${{ steps.stack-config.outputs.stack-name }} \
+              --change-set-name $CHANGESET_NAME \
+              --region us-west-2 2>/dev/null || true
+
+            if [ "$CHANGES" = "0" ]; then
               echo "Stack is already up-to-date - no updates needed ✅"
             else
-              echo "Stack update failed:"
-              echo "$UPDATE_OUTPUT"
-              exit 1
+              echo "Updates detected, applying changes..."
+              aws cloudformation update-stack \
+                --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
+                --stack-name ${{ steps.stack-config.outputs.stack-name }} \
+                --parameters \
+                  ParameterKey=Environment,ParameterValue=${{ env.ENVIRONMENT }} \
+                  ParameterKey=CognitoDomainPrefix,ParameterValue=${{ steps.stack-config.outputs.cognito-prefix }} \
+                  ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
+                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
+                --region us-west-2
+              echo "Stack update completed successfully"
             fi
           fi
 
