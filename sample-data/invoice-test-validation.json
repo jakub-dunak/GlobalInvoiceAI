@@ -1,0 +1,23 @@
+{
+  "customer_name": "Validation Test Corp",
+  "customer_address": "456 Validation Ave, Error City, EC 67890",
+  "invoice_number": "VAL-TEST-001",
+  "invoice_date": "2024-01-15",
+  "due_date": "2024-02-15",
+  "currency": "XYZ",
+  "country": "US",
+  "line_items": [
+    {
+      "description": "High Value Service",
+      "quantity": 1,
+      "unit_price": 500000.00,
+      "total": 500000.00
+    }
+  ],
+  "subtotal": 500000.00,
+  "tax_rate": 0.08,
+  "tax_amount": 40000.00,
+  "total_amount": 540000.00,
+  "payment_terms": "Net 30",
+  "notes": "Test invoice with unusual currency and high value for validation testing."
+}

@@ -922,6 +922,12 @@ Resources:
           - StatusCode: 403
           - StatusCode: 404
           - StatusCode: 500
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
 
   PostInvoicesMethod:
     Type: AWS::ApiGateway::Method
@@ -942,6 +948,12 @@ Resources:
           - StatusCode: 403
           - StatusCode: 404
           - StatusCode: 500
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
 
   GetInvoiceMethod:
     Type: AWS::ApiGateway::Method
@@ -965,6 +977,12 @@ Resources:
           - StatusCode: 403
           - StatusCode: 404
           - StatusCode: 500
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
 
   GetInvoicesStatsMethod:
     Type: AWS::ApiGateway::Method
@@ -985,6 +1003,12 @@ Resources:
           - StatusCode: 403
           - StatusCode: 404
           - StatusCode: 500
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
 
   GetLogsMethod:
     Type: AWS::ApiGateway::Method
@@ -1005,6 +1029,12 @@ Resources:
           - StatusCode: 403
           - StatusCode: 404
           - StatusCode: 500
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
 
   GetConfigMethod:
     Type: AWS::ApiGateway::Method
@@ -1025,6 +1055,12 @@ Resources:
           - StatusCode: 403
           - StatusCode: 404
           - StatusCode: 500
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
 
   PutConfigMethod:
     Type: AWS::ApiGateway::Method
@@ -1045,6 +1081,12 @@ Resources:
           - StatusCode: 403
           - StatusCode: 404
           - StatusCode: 500
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
 
   GetMetricsMethod:
     Type: AWS::ApiGateway::Method
@@ -1065,6 +1107,12 @@ Resources:
           - StatusCode: 403
           - StatusCode: 404
           - StatusCode: 500
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
 
   PostUploadMethod:
     Type: AWS::ApiGateway::Method
@@ -1107,6 +1155,12 @@ Resources:
           - StatusCode: 403
           - StatusCode: 404
           - StatusCode: 500
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
 
   # API Gateway Authorizer
   ApiGatewayAuthorizer:
