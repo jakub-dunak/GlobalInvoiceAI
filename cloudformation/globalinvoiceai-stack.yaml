@@ -915,6 +915,13 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+          - StatusCode: 400
+          - StatusCode: 401
+          - StatusCode: 403
+          - StatusCode: 404
+          - StatusCode: 500
 
   PostInvoicesMethod:
     Type: AWS::ApiGateway::Method
@@ -928,6 +935,13 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+          - StatusCode: 400
+          - StatusCode: 401
+          - StatusCode: 403
+          - StatusCode: 404
+          - StatusCode: 500
 
   GetInvoiceMethod:
     Type: AWS::ApiGateway::Method
@@ -944,6 +958,13 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+          - StatusCode: 400
+          - StatusCode: 401
+          - StatusCode: 403
+          - StatusCode: 404
+          - StatusCode: 500
 
   GetInvoicesStatsMethod:
     Type: AWS::ApiGateway::Method
@@ -957,6 +978,13 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+          - StatusCode: 400
+          - StatusCode: 401
+          - StatusCode: 403
+          - StatusCode: 404
+          - StatusCode: 500
 
   GetLogsMethod:
     Type: AWS::ApiGateway::Method
@@ -970,6 +998,13 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+          - StatusCode: 400
+          - StatusCode: 401
+          - StatusCode: 403
+          - StatusCode: 404
+          - StatusCode: 500
 
   GetConfigMethod:
     Type: AWS::ApiGateway::Method
@@ -983,6 +1018,13 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+          - StatusCode: 400
+          - StatusCode: 401
+          - StatusCode: 403
+          - StatusCode: 404
+          - StatusCode: 500
 
   PutConfigMethod:
     Type: AWS::ApiGateway::Method
@@ -996,6 +1038,13 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+          - StatusCode: 400
+          - StatusCode: 401
+          - StatusCode: 403
+          - StatusCode: 404
+          - StatusCode: 500
 
   GetMetricsMethod:
     Type: AWS::ApiGateway::Method
@@ -1009,6 +1058,13 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+          - StatusCode: 400
+          - StatusCode: 401
+          - StatusCode: 403
+          - StatusCode: 404
+          - StatusCode: 500
 
   PostUploadMethod:
     Type: AWS::ApiGateway::Method
@@ -1022,6 +1078,13 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+          - StatusCode: 400
+          - StatusCode: 401
+          - StatusCode: 403
+          - StatusCode: 404
+          - StatusCode: 500
 
   GetPdfMethod:
     Type: AWS::ApiGateway::Method
@@ -1037,6 +1100,13 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InvoiceTriggerFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+          - StatusCode: 400
+          - StatusCode: 401
+          - StatusCode: 403
+          - StatusCode: 404
+          - StatusCode: 500
 
   # API Gateway Authorizer
   ApiGatewayAuthorizer:
@@ -1180,7 +1250,7 @@ Resources:
       - GatewayResponseInvalidSignature
     Properties:
       RestApiId: !Ref RestApi
-      Description: !Sub 'Deployment ${AWS::StackId} - CORS Fix ${AWS::StackName} - v20251022-01'
+      Description: !Sub 'Deployment ${AWS::StackId} - CORS Fix with IntegrationResponses ${AWS::StackName} - v20251022-02'
 
   ApiGatewayStage:
     Type: AWS::ApiGateway::Stage
