@@ -197,44 +197,17 @@ jobs:
 
           aws s3 cp packaged-template.yaml s3://${{ env.DEPLOYMENT_BUCKET }}/$TEMPLATE_S3_KEY --region us-west-2
 
-          # Check if stack exists and deploy accordingly
-          STACK_EXISTS=$(aws cloudformation describe-stacks --stack-name ${{ steps.stack-config.outputs.stack-name }} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
-
-          if [ "$STACK_EXISTS" = "DOES_NOT_EXIST" ]; then
-            echo "Creating new stack..."
-            aws cloudformation create-stack \
-              --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
-              --stack-name ${{ steps.stack-config.outputs.stack-name }} \
-              --parameters \
-                ParameterKey=Environment,ParameterValue=${{ env.ENVIRONMENT }} \
-                ParameterKey=CognitoDomainPrefix,ParameterValue=${{ steps.stack-config.outputs.cognito-prefix }} \
-                ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
-              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
-              --region us-west-2
-          else
-            echo "Updating existing stack..."
-            # Capture the output and exit code of update-stack command
-            UPDATE_OUTPUT=$(aws cloudformation update-stack \
-              --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
-              --stack-name ${{ steps.stack-config.outputs.stack-name }} \
-              --parameters \
-                ParameterKey=Environment,ParameterValue=${{ env.ENVIRONMENT }} \
-                ParameterKey=CognitoDomainPrefix,ParameterValue=${{ steps.stack-config.outputs.cognito-prefix }} \
-                ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
-              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
-              --region us-west-2 2>&1)
-            UPDATE_EXIT_CODE=$?
-
-            if [ $UPDATE_EXIT_CODE -eq 0 ]; then
-              echo "Stack update completed successfully"
-            elif echo "$UPDATE_OUTPUT" | grep -q "No updates are to be performed"; then
-              echo "Stack is already up-to-date - no updates needed ✅"
-            else
-              echo "Stack update failed:"
-              echo "$UPDATE_OUTPUT"
-              exit 1
-            fi
-          fi
+          echo "Deploying stack using aws cloudformation deploy..."
+          aws cloudformation deploy \
+            --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
+            --stack-name ${{ steps.stack-config.outputs.stack-name }} \
+            --parameter-overrides \
+              Environment=${{ env.ENVIRONMENT }} \
+              CognitoDomainPrefix=${{ steps.stack-config.outputs.cognito-prefix }} \
+              DeploymentArtifactsBucket=${{ env.DEPLOYMENT_BUCKET }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
+            --region us-west-2 \
+            --no-fail-on-empty-changeset
 
       - name: Get stack outputs
         id: stack-outputs
