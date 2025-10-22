@@ -197,17 +197,49 @@ jobs:
 
           aws s3 cp packaged-template.yaml s3://${{ env.DEPLOYMENT_BUCKET }}/$TEMPLATE_S3_KEY --region us-west-2
 
-          echo "Deploying stack using aws cloudformation deploy..."
-          aws cloudformation deploy \
-            --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
-            --stack-name ${{ steps.stack-config.outputs.stack-name }} \
-            --parameter-overrides \
-              Environment=${{ env.ENVIRONMENT }} \
-              CognitoDomainPrefix=${{ steps.stack-config.outputs.cognito-prefix }} \
-              DeploymentArtifactsBucket=${{ env.DEPLOYMENT_BUCKET }} \
-            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
-            --region us-west-2 \
-            --no-fail-on-empty-changeset
+          # Check if stack exists and deploy accordingly
+          STACK_EXISTS=$(aws cloudformation describe-stacks --stack-name ${{ steps.stack-config.outputs.stack-name }} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+          if [ "$STACK_EXISTS" = "DOES_NOT_EXIST" ]; then
+            echo "Creating new stack..."
+            aws cloudformation create-stack \
+              --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
+              --stack-name ${{ steps.stack-config.outputs.stack-name }} \
+              --parameters \
+                ParameterKey=Environment,ParameterValue=${{ env.ENVIRONMENT }} \
+                ParameterKey=CognitoDomainPrefix,ParameterValue=${{ steps.stack-config.outputs.cognito-prefix }} \
+                ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
+              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
+              --region us-west-2
+          else
+            echo "Updating existing stack..."
+            # Try to update stack, but handle "no updates" as success
+            if aws cloudformation update-stack \
+              --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
+              --stack-name ${{ steps.stack-config.outputs.stack-name }} \
+              --parameters \
+                ParameterKey=Environment,ParameterValue=${{ env.ENVIRONMENT }} \
+                ParameterKey=CognitoDomainPrefix,ParameterValue=${{ steps.stack-config.outputs.cognito-prefix }} \
+                ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
+              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
+              --region us-west-2 2>&1; then
+              echo "Stack update completed successfully"
+            else
+              # Check if this was a "no updates" scenario by examining the error
+              aws cloudformation describe-stack-events \
+                --stack-name ${{ steps.stack-config.outputs.stack-name }} \
+                --region us-west-2 \
+                --max-items 1 \
+                --query 'StackEvents[0].ResourceStatusReason' \
+                --output text | grep -q "No updates are to be performed" && {
+                echo "Stack is already up-to-date - no updates needed ✅"
+                exit 0
+              } || {
+                echo "Stack update failed"
+                exit 1
+              }
+            fi
+          fi
 
       - name: Get stack outputs
         id: stack-outputs
