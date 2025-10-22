@@ -188,9 +188,19 @@ jobs:
 
       - name: Deploy CloudFormation stack
         run: |
-          # Deploy the stack
+          # Always upload packaged template to S3 for reliability and to handle size limits
+          TEMPLATE_S3_KEY="cloudformation/globalinvoiceai-stack-${{ env.ENVIRONMENT }}.yaml"
+          TEMPLATE_SIZE=$(stat -f%z packaged-template.yaml 2>/dev/null || stat -c%s packaged-template.yaml 2>/dev/null || echo "0")
+
+          echo "Packaged template size: $TEMPLATE_SIZE bytes"
+          echo "Uploading packaged template to S3..."
+
+          aws s3 cp packaged-template.yaml s3://${{ env.DEPLOYMENT_BUCKET }}/$TEMPLATE_S3_KEY --region us-west-2
+          TEMPLATE_URL="https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY"
+
+          # Deploy the stack using S3 URL
           aws cloudformation deploy \
-            --template-file packaged-template.yaml \
+            --template-url $TEMPLATE_URL \
             --stack-name ${{ steps.stack-config.outputs.stack-name }} \
             --parameter-overrides \
               Environment=${{ env.ENVIRONMENT }} \

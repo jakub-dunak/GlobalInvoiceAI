@@ -8,7 +8,7 @@ from datetime import datetime
 import base64
 
 ecr_client = boto3.client('ecr')
-bedrock_agentcore = boto3.client('bedrock-agentcore')
+bedrock_agentcore = boto3.client('bedrock-agentcore-control')
 ssm = boto3.client('ssm')
 
 def handler(event, context):
@@ -29,42 +29,42 @@ def handler(event, context):
 
 def create_agentcore_app():
     """Create and deploy the AgentCore application"""
-    agent_name = os.environ['AGENT_NAME']
-    repo_name = os.environ['ECR_REPO']
+    try:
+        agent_name = os.environ['AGENT_NAME']
+        repo_name = os.environ['ECR_REPO']
 
-    # Get ECR login token
-    auth_token = ecr_client.get_authorization_token()
-    username, password = base64.b64decode(auth_token['authorizationData'][0]['authorizationToken']).decode().split(':')
+        # Get ECR login token
+        auth_token = ecr_client.get_authorization_token()
+        username, password = base64.b64decode(auth_token['authorizationData'][0]['authorizationToken']).decode().split(':')
 
-    # Build and push container image
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Create Dockerfile
-        dockerfile_content = '''
+        # Build and push container image
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create Dockerfile
+            dockerfile_content = '''
 FROM public.ecr.aws/lambda/python:3.11
 
 COPY invoice_agent.py requirements.txt ./
 
 RUN pip install -r requirements.txt
 
-CMD ["invoice_agent.app"]
+# BedrockAgentCoreApp handles the Lambda runtime automatically
+CMD ["python", "invoice_agent.py"]
 '''
 
-        with open(f'{temp_dir}/Dockerfile', 'w') as f:
-            f.write(dockerfile_content)
+            with open(f'{temp_dir}/Dockerfile', 'w') as f:
+                f.write(dockerfile_content)
 
-        # Create requirements.txt
-        requirements_content = '''
-bedrock-agentcore-sdk-python==1.0.0
-strands-agents==1.0.0
+            # Create requirements.txt
+            requirements_content = '''
+bedrock-agentcore[strands-agents]
 boto3==1.34.0
-requests==2.31.0
 '''
 
-        with open(f'{temp_dir}/requirements.txt', 'w') as f:
-            f.write(requirements_content)
+            with open(f'{temp_dir}/requirements.txt', 'w') as f:
+                f.write(requirements_content)
 
-        # Create agent code
-        agent_code = '''
+            # Create agent code
+            agent_code = '''
 from strands import Agent, tool
 from strands.models import BedrockModel
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
@@ -94,14 +94,8 @@ def get_tax_rate(country: str, region: str, tax_type: str) -> dict:
     except Exception as e:
         print(f"Cache lookup failed: {e}")
 
-    # Call external API
-    try:
-        secret_name = os.environ.get('API_KEYS_SECRET', 'globalinvoiceai-external-api-keys-dev')
-        secrets_response = secrets.get_secret_value(SecretId=secret_name)
-        api_keys = json.loads(secrets_response['SecretString'])
-
-        # Use abstractAPI for tax rates (placeholder - replace with actual API)
-        # For demo, return hardcoded rates
+    # For demo purposes, use hardcoded rates
+    # In production, this would call external APIs
         tax_rates = {
             "US-CA": {"VAT": 0.0875, "SALES_TAX": 0.0875},
             "US-NY": {"VAT": 0.08, "SALES_TAX": 0.08},
@@ -339,69 +333,68 @@ if __name__ == "__main__":
     app.run()
 '''
 
-        with open(f'{temp_dir}/invoice_agent.py', 'w') as f:
-            f.write(agent_code)
+            with open(f'{temp_dir}/invoice_agent.py', 'w') as f:
+                f.write(agent_code)
 
-        # Build and push Docker image
-        repo_uri = auth_token['authorizationData'][0]['proxyEndpoint']
-        image_tag = f"{repo_uri}/{repo_name}:latest"
+            # Build and push Docker image
+            repo_uri = auth_token['authorizationData'][0]['proxyEndpoint']
+            image_tag = f"{repo_uri}/{repo_name}:latest"
 
-        # Login to ECR
-        subprocess.run(['docker', 'login', '--username', username, '--password', password, repo_uri],
-                     check=True, capture_output=True)
+            # Login to ECR
+            subprocess.run(['docker', 'login', '--username', username, '--password', password, repo_uri],
+                         check=True, capture_output=True)
 
-        # Build image
-        subprocess.run(['docker', 'build', '-t', image_tag, temp_dir],
-                     check=True, capture_output=True)
+            # Build image
+            subprocess.run(['docker', 'build', '-t', image_tag, temp_dir],
+                         check=True, capture_output=True)
 
-        # Push image
-        subprocess.run(['docker', 'push', image_tag],
-                     check=True, capture_output=True)
+            # Push image
+            subprocess.run(['docker', 'push', image_tag],
+                         check=True, capture_output=True)
 
-        # Create AgentCore Agent
-        agent_response = bedrock_agentcore.create_agent(
-            agentName=agent_name,
-            description='GlobalInvoiceAI Agent for invoice validation and generation',
-            agentResourceRoleArn='${AGENTCORE_EXECUTION_ROLE_ARN}',
-            tags=[
-                {'key': 'Environment', 'value': '${ENVIRONMENT}'},
-                {'key': 'Application', 'value': 'GlobalInvoiceAI'}
-            ]
-        )
+            # Create AgentCore Runtime
+            # Note: AgentCore uses a simplified deployment model where runtime creation handles both agent and runtime
+            runtime_response = bedrock_agentcore.create_agent_runtime(
+                agentRuntimeName=agent_name,
+                description='GlobalInvoiceAI Agent for invoice validation and generation',
+                agentRuntimeArtifact={
+                    'containerConfiguration': {
+                        'containerUri': image_tag
+                    }
+                },
+                roleArn=os.environ['AGENTCORE_EXECUTION_ROLE_ARN'],
+                networkConfiguration={
+                    'networkMode': 'PUBLIC'
+                },
+                protocolConfiguration={
+                    'serverProtocol': 'HTTP'
+                },
+                tags={
+                    'Environment': os.environ['ENVIRONMENT'],
+                    'Application': 'GlobalInvoiceAI'
+                }
+            )
 
-        agent_id = agent_response['agent']['agentId']
-        print(f"Created AgentCore Agent: {agent_id}")
+            runtime_arn = runtime_response['agentRuntimeArn']
+            runtime_id = runtime_response['agentRuntimeId']
+            print(f"Created AgentCore Runtime: {runtime_arn}")
 
-        # Create AgentCore Runtime
-        runtime_response = bedrock_agentcore.create_agent_runtime(
-            agentId=agent_id,
-            runtimeConfiguration={
-                'type': 'container',
-                'containerRuntimeConfiguration': {
-                    'containerImageUri': image_tag
+            # Store runtime ARN in Parameter Store
+            ssm.put_parameter(
+                Name=os.environ['RUNTIME_PARAM'],
+                Value=runtime_arn,
+                Type='String',
+                Description='AgentCore Runtime ARN for GlobalInvoiceAI'
+            )
+
+            return {
+                'Status': 'SUCCESS',
+                'PhysicalResourceId': runtime_id,
+                'Data': {
+                    'RuntimeId': runtime_id,
+                    'RuntimeArn': runtime_arn
                 }
             }
-        )
-
-        runtime_arn = runtime_response['agentRuntime']['agentRuntimeArn']
-        print(f"Created AgentCore Runtime: {runtime_arn}")
-
-        # Store runtime ARN in Parameter Store
-        ssm.put_parameter(
-            Name=os.environ['RUNTIME_PARAM'],
-            Value=runtime_arn,
-            Type='String',
-            Description='AgentCore Runtime ARN for GlobalInvoiceAI'
-        )
-
-        return {
-            'Status': 'SUCCESS',
-            'PhysicalResourceId': agent_id,
-            'Data': {
-                'AgentId': agent_id,
-                'RuntimeArn': runtime_arn
-            }
-        }
 
     except Exception as e:
         print(f"Error creating AgentCore app: {str(e)}")
