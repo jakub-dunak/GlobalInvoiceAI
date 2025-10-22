@@ -145,6 +145,14 @@ def handler(event, context):
 
     return {"statusCode": 200, "body": "Processing complete"}
 
+def cors_headers():
+    """Return standard CORS headers"""
+    return {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+    }
+
 def handle_api_request(event, context):
     """Handle API Gateway requests"""
     try:
@@ -177,11 +185,25 @@ def handle_api_request(event, context):
         elif path == '/metrics' and http_method == 'GET':
             return get_metrics()
         else:
-            return {"statusCode": 404, "body": json.dumps({"error": "Not found"})}
+            return {
+                "statusCode": 404,
+                "headers": {
+                    "Content-Type": "application/json",
+                    **cors_headers()
+                },
+                "body": json.dumps({"error": "Not found"})
+            }
 
     except Exception as e:
         print(f"API Error: {str(e)}")
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+                **cors_headers()
+            },
+            "body": json.dumps({"error": str(e)})
+        }
 
 def get_invoices(params):
     """Get list of invoices with optional filtering"""
@@ -213,9 +235,7 @@ def get_invoices(params):
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+                **cors_headers()
             },
             "body": json.dumps({
                 "invoices": response.get('Items', []),
@@ -223,22 +243,53 @@ def get_invoices(params):
             })
         }
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+                **cors_headers()
+            },
+            "body": json.dumps({"error": str(e)})
+        }
 
 def upload_invoice(body):
-    """Handle manual invoice upload"""
+    """Handle manual invoice upload - generate presigned URL or accept JSON data"""
     try:
-        # Parse the multipart form data or JSON body
-        if body.startswith('{'):
-            # JSON body (fallback for testing)
-            invoice_data = json.loads(body)
-        else:
+        # Parse request body
+        request_data = json.loads(body) if body else {}
+        
+        # If this is a request for presigned URL (no invoice data yet)
+        if request_data.get('action') == 'get_upload_url':
+            invoice_id = str(uuid.uuid4())
+            s3_key = f"uploads/{invoice_id}.json"
+            upload_bucket = os.environ.get('UPLOAD_BUCKET', 'globalinvoiceai-invoice-upload-dev')
+            
+            # Generate presigned URL for direct S3 upload
+            presigned_url = s3_client.generate_presigned_url(
+                'put_object',
+                Params={
+                    'Bucket': upload_bucket,
+                    'Key': s3_key,
+                    'ContentType': 'application/json'
+                },
+                ExpiresIn=300  # 5 minutes
+            )
+            
             return {
-                "statusCode": 400,
-                "body": json.dumps({"error": "Multipart form data expected"})
+                "statusCode": 200,
+                "headers": {
+                    "Content-Type": "application/json",
+                    **cors_headers()
+                },
+                "body": json.dumps({
+                    "uploadUrl": presigned_url,
+                    "invoiceId": invoice_id,
+                    "s3Key": s3_key
+                })
             }
-
-        # Generate invoice ID and upload to S3
+        
+        # Otherwise, accept invoice data directly
+        invoice_data = request_data
         invoice_id = str(uuid.uuid4())
         s3_key = f"uploads/{invoice_id}.json"
 
@@ -279,9 +330,7 @@ def upload_invoice(body):
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+                **cors_headers()
             },
             "body": json.dumps({
                 "message": "Invoice uploaded successfully",
@@ -290,7 +339,14 @@ def upload_invoice(body):
             })
         }
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+                **cors_headers()
+            },
+            "body": json.dumps({"error": str(e)})
+        }
 
 def get_invoice(invoice_id):
     """Get specific invoice details"""
@@ -299,20 +355,32 @@ def get_invoice(invoice_id):
         response = invoices_table.get_item(Key={'InvoiceId': invoice_id})
 
         if 'Item' not in response:
-            return {"statusCode": 404, "body": json.dumps({"error": "Invoice not found"})}
+            return {
+                "statusCode": 404,
+                "headers": {
+                    "Content-Type": "application/json",
+                    **cors_headers()
+                },
+                "body": json.dumps({"error": "Invoice not found"})
+            }
 
         return {
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+                **cors_headers()
             },
             "body": json.dumps(response['Item'])
         }
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+                **cors_headers()
+            },
+            "body": json.dumps({"error": str(e)})
+        }
 
 def get_invoice_pdf(invoice_id):
     """Get invoice PDF - redirect to PDF generator"""
@@ -322,11 +390,25 @@ def get_invoice_pdf(invoice_id):
         response = invoices_table.get_item(Key={'InvoiceId': invoice_id})
 
         if 'Item' not in response:
-            return {"statusCode": 404, "body": json.dumps({"error": "Invoice not found"})}
+            return {
+                "statusCode": 404,
+                "headers": {
+                    "Content-Type": "application/json",
+                    **cors_headers()
+                },
+                "body": json.dumps({"error": "Invoice not found"})
+            }
 
         invoice = response['Item']
         if invoice.get('Status') != 'VALIDATED':
-            return {"statusCode": 400, "body": json.dumps({"error": "Invoice not validated"})}
+            return {
+                "statusCode": 400,
+                "headers": {
+                    "Content-Type": "application/json",
+                    **cors_headers()
+                },
+                "body": json.dumps({"error": "Invoice not validated"})
+            }
 
         # Trigger PDF generation
         pdf_generator = boto3.client('lambda')
@@ -337,11 +419,25 @@ def get_invoice_pdf(invoice_id):
         )
 
         if pdf_response['StatusCode'] != 200:
-            return {"statusCode": 500, "body": json.dumps({"error": "PDF generation failed"})}
+            return {
+                "statusCode": 500,
+                "headers": {
+                    "Content-Type": "application/json",
+                    **cors_headers()
+                },
+                "body": json.dumps({"error": "PDF generation failed"})
+            }
 
         pdf_result = json.loads(pdf_response['Payload'].read())
         if pdf_result.get('statusCode') != 200:
-            return {"statusCode": pdf_result.get('statusCode', 500), "body": json.dumps({"error": "PDF generation failed"})}
+            return {
+                "statusCode": pdf_result.get('statusCode', 500),
+                "headers": {
+                    "Content-Type": "application/json",
+                    **cors_headers()
+                },
+                "body": json.dumps({"error": "PDF generation failed"})
+            }
 
         # Get PDF from S3
         s3_response = s3_client.get_object(
@@ -356,15 +452,20 @@ def get_invoice_pdf(invoice_id):
             "headers": {
                 "Content-Type": "application/pdf",
                 "Content-Disposition": f"attachment; filename={invoice_id}.pdf",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+                **cors_headers()
             },
             "body": base64.b64encode(pdf_content).decode('utf-8'),
             "isBase64Encoded": True
         }
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+                **cors_headers()
+            },
+            "body": json.dumps({"error": str(e)})
+        }
 
 def get_invoice_stats():
     """Get invoice processing statistics"""
@@ -386,9 +487,7 @@ def get_invoice_stats():
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+                **cors_headers()
             },
             "body": json.dumps({
                 "totalInvoices": total_invoices,
@@ -398,7 +497,14 @@ def get_invoice_stats():
             })
         }
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+                **cors_headers()
+            },
+            "body": json.dumps({"error": str(e)})
+        }
 
 def get_processing_logs(params):
     """Get processing logs"""
@@ -421,14 +527,19 @@ def get_processing_logs(params):
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+                **cors_headers()
             },
             "body": json.dumps({"logs": response.get('Items', [])})
         }
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+                **cors_headers()
+            },
+            "body": json.dumps({"error": str(e)})
+        }
 
 def get_system_config():
     """Get system configuration"""
@@ -459,14 +570,19 @@ def get_system_config():
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET,PUT,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+                **cors_headers()
             },
             "body": json.dumps(config)
         }
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})})
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+                **cors_headers()
+            },
+            "body": json.dumps({"error": str(e)})
+        }
 
 def update_system_config(body):
     """Update system configuration"""
@@ -509,9 +625,7 @@ def update_system_config(body):
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET,PUT,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+                **cors_headers()
             },
             "body": json.dumps({
                 "message": "Configuration updated successfully",
@@ -521,10 +635,21 @@ def update_system_config(body):
     except json.JSONDecodeError:
         return {
             "statusCode": 400,
+            "headers": {
+                "Content-Type": "application/json",
+                **cors_headers()
+            },
             "body": json.dumps({"error": "Invalid JSON in request body"})
         }
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})})
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+                **cors_headers()
+            },
+            "body": json.dumps({"error": str(e)})
+        }
 
 def get_metrics():
     """Get CloudWatch metrics"""
@@ -554,9 +679,7 @@ def get_metrics():
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+                **cors_headers()
             },
             "body": json.dumps({
                 "invoiceCount": response.get('MetricDataResults', [{}])[0].get('Values', []),
@@ -565,4 +688,11 @@ def get_metrics():
             })
         }
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+                **cors_headers()
+            },
+            "body": json.dumps({"error": str(e)})
+        }

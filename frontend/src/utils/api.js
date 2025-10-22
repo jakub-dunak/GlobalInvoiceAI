@@ -161,13 +161,32 @@ class ApiService {
   async uploadInvoice(file) {
     try {
       const headers = await this.getAuthHeaders();
-      const formData = new FormData();
-      formData.append('invoice', file);
+      
+      // Read file content
+      const fileContent = await file.text();
+      let invoiceData;
+      
+      // Parse based on file type
+      if (file.name.endsWith('.json')) {
+        invoiceData = JSON.parse(fileContent);
+      } else if (file.name.endsWith('.csv')) {
+        // Basic CSV parsing (first row as headers)
+        const lines = fileContent.split('\n');
+        const headers = lines[0].split(',');
+        const values = lines[1].split(',');
+        invoiceData = {};
+        headers.forEach((header, index) => {
+          invoiceData[header.trim()] = values[index]?.trim();
+        });
+      } else {
+        throw new Error('Unsupported file type. Please upload JSON or CSV');
+      }
 
-      const response = await axios.post(`${this.baseURL}/invoices/upload`, formData, {
+      // Send invoice data as JSON
+      const response = await axios.post(`${this.baseURL}/invoices/upload`, invoiceData, {
         headers: {
           ...headers,
-          'Content-Type': 'multipart/form-data'
+          'Content-Type': 'application/json'
         }
       });
       return response.data;
