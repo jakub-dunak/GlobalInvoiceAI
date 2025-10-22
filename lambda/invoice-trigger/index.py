@@ -209,7 +209,12 @@ def get_invoices(params):
 
         return {
             "statusCode": 200,
-            "headers": {"Content-Type": "application/json"},
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+            },
             "body": json.dumps({
                 "invoices": response.get('Items', []),
                 "total": response.get('Count', 0)
@@ -270,7 +275,12 @@ def upload_invoice(body):
 
         return {
             "statusCode": 200,
-            "headers": {"Content-Type": "application/json"},
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+            },
             "body": json.dumps({
                 "message": "Invoice uploaded successfully",
                 "invoiceId": invoice_id,
@@ -291,7 +301,12 @@ def get_invoice(invoice_id):
 
         return {
             "statusCode": 200,
-            "headers": {"Content-Type": "application/json"},
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+            },
             "body": json.dumps(response['Item'])
         }
     except Exception as e:
@@ -338,7 +353,10 @@ def get_invoice_pdf(invoice_id):
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/pdf",
-                "Content-Disposition": f"attachment; filename={invoice_id}.pdf"
+                "Content-Disposition": f"attachment; filename={invoice_id}.pdf",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
             },
             "body": base64.b64encode(pdf_content).decode('utf-8'),
             "isBase64Encoded": True
@@ -364,7 +382,12 @@ def get_invoice_stats():
 
         return {
             "statusCode": 200,
-            "headers": {"Content-Type": "application/json"},
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+            },
             "body": json.dumps({
                 "totalInvoices": total_invoices,
                 "processedToday": processed_today,
@@ -394,7 +417,12 @@ def get_processing_logs(params):
 
         return {
             "statusCode": 200,
-            "headers": {"Content-Type": "application/json"},
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+            },
             "body": json.dumps({"logs": response.get('Items', [])})
         }
     except Exception as e:
@@ -427,7 +455,12 @@ def get_system_config():
 
         return {
             "statusCode": 200,
-            "headers": {"Content-Type": "application/json"},
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET,PUT,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+            },
             "body": json.dumps(config)
         }
     except Exception as e:
@@ -472,7 +505,12 @@ def update_system_config(body):
 
         return {
             "statusCode": 200,
-            "headers": {"Content-Type": "application/json"},
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET,PUT,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+            },
             "body": json.dumps({
                 "message": "Configuration updated successfully",
                 "config": config_data
@@ -512,7 +550,12 @@ def get_metrics():
 
         return {
             "statusCode": 200,
-            "headers": {"Content-Type": "application/json"},
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+            },
             "body": json.dumps({
                 "invoiceCount": response.get('MetricDataResults', [{}])[0].get('Values', []),
                 "processingTime": [],

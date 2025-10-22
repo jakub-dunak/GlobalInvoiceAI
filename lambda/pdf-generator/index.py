@@ -18,7 +18,16 @@ def handler(event, context):
         if 'httpMethod' in event:
             invoice_id = event.get('pathParameters', {}).get('invoiceId')
             if not invoice_id:
-                return {"statusCode": 400, "body": json.dumps({"error": "Missing invoiceId"})}
+                return {
+                    "statusCode": 400,
+                    "headers": {
+                        "Content-Type": "application/json",
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+                    },
+                    "body": json.dumps({"error": "Missing invoiceId"})
+                }
         else:
             # Direct Lambda invocation
             invoice_id = event['invoiceId']
@@ -28,11 +37,29 @@ def handler(event, context):
         response = invoices_table.get_item(Key={'InvoiceId': invoice_id})
 
         if 'Item' not in response:
-            return {"statusCode": 404, "body": "Invoice not found"}
+            return {
+                "statusCode": 404,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+                },
+                "body": json.dumps({"error": "Invoice not found"})
+            }
 
         invoice = response['Item']
         if invoice['Status'] != 'VALIDATED':
-            return {"statusCode": 400, "body": "Invoice not validated"}
+            return {
+                "statusCode": 400,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+                },
+                "body": json.dumps({"error": "Invoice not validated"})
+            }
 
         # Generate PDF
         pdf_buffer = io.BytesIO()
@@ -126,6 +153,12 @@ def handler(event, context):
 
         return {
             "statusCode": 200,
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+            },
             "body": json.dumps({
                 "invoiceId": invoice_id,
                 "pdfLocation": pdf_key,
