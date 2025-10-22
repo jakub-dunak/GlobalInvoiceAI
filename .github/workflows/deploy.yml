@@ -203,7 +203,7 @@ jobs:
           if [ "$STACK_EXISTS" = "DOES_NOT_EXIST" ]; then
             echo "Creating new stack..."
             aws cloudformation create-stack \
-              --template-url "s3://${{ env.DEPLOYMENT_BUCKET }}/$TEMPLATE_S3_KEY" \
+              --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
               --stack-name ${{ steps.stack-config.outputs.stack-name }} \
               --parameters \
                 ParameterKey=Environment,ParameterValue=${{ env.ENVIRONMENT }} \
@@ -214,7 +214,7 @@ jobs:
           else
             echo "Updating existing stack..."
             aws cloudformation update-stack \
-              --template-url "s3://${{ env.DEPLOYMENT_BUCKET }}/$TEMPLATE_S3_KEY" \
+              --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
               --stack-name ${{ steps.stack-config.outputs.stack-name }} \
               --parameters \
                 ParameterKey=Environment,ParameterValue=${{ env.ENVIRONMENT }} \
