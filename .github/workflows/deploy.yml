@@ -148,7 +148,10 @@ jobs:
           STACK_NAME="globalinvoiceai-${{ env.ENVIRONMENT }}"
 
           # Check if stack exists and its status
-          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null)
+          if [ $? -ne 0 ] || [ -z "$STACK_STATUS" ] || [ "$STACK_STATUS" = "None" ]; then
+            STACK_STATUS="DOES_NOT_EXIST"
+          fi
 
           if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ]; then
             echo "Found failed stack in ${STACK_STATUS} state, deleting before redeployment..."
@@ -163,6 +166,7 @@ jobs:
             aws cloudformation wait stack-update-complete --stack-name ${STACK_NAME} --region us-west-2 2>/dev/null || {
               STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null)
               echo "Stack operation failed, final status: ${STACK_STATUS}"
+              exit 1
             }
           else
             echo "Stack status: ${STACK_STATUS}"
@@ -225,7 +229,8 @@ jobs:
             # Create a changeset to check if updates are needed without actually updating
             CHANGESET_NAME="check-update-$(date +%s)"
 
-            aws cloudformation create-change-set \
+            echo "Creating changeset: $CHANGESET_NAME"
+            if ! aws cloudformation create-change-set \
               --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
               --stack-name ${{ steps.stack-config.outputs.stack-name }} \
               --change-set-name $CHANGESET_NAME \
@@ -234,24 +239,32 @@ jobs:
                 ParameterKey=CognitoDomainPrefix,ParameterValue=${{ steps.stack-config.outputs.cognito-prefix }} \
                 ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
-              --region us-west-2
+              --region us-west-2; then
+              echo "❌ Failed to create changeset"
+              exit 1
+            fi
 
             # Wait a moment for changeset to be created
             sleep 5
 
             # Check if changeset has any changes
-            CHANGES=$(aws cloudformation describe-change-set \
+            echo "Checking changeset for changes..."
+            if ! CHANGES=$(aws cloudformation describe-change-set \
               --stack-name ${{ steps.stack-config.outputs.stack-name }} \
               --change-set-name $CHANGESET_NAME \
               --region us-west-2 \
               --query 'length(Changes)' \
-              --output text 2>/dev/null || echo "0")
+              --output text 2>/dev/null); then
+              echo "❌ Failed to describe changeset, assuming changes needed"
+              CHANGES="1"
+            fi
 
             # Clean up the changeset
+            echo "Cleaning up changeset..."
             aws cloudformation delete-change-set \
               --stack-name ${{ steps.stack-config.outputs.stack-name }} \
               --change-set-name $CHANGESET_NAME \
-              --region us-west-2 2>/dev/null || true
+              --region us-west-2 2>/dev/null || echo "Warning: Could not delete changeset"
 
             if [ "$CHANGES" = "0" ]; then
               echo "Stack is already up-to-date - no updates needed ✅"
