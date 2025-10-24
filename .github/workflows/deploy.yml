@@ -198,7 +198,10 @@ jobs:
           aws s3 cp packaged-template.yaml s3://${{ env.DEPLOYMENT_BUCKET }}/$TEMPLATE_S3_KEY --region us-west-2
 
           # Check if stack exists and deploy accordingly
-          STACK_EXISTS=$(aws cloudformation describe-stacks --stack-name ${{ steps.stack-config.outputs.stack-name }} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+          STACK_EXISTS=$(aws cloudformation describe-stacks --stack-name ${{ steps.stack-config.outputs.stack-name }} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null)
+          if [ $? -ne 0 ] || [ -z "$STACK_EXISTS" ] || [ "$STACK_EXISTS" = "None" ]; then
+            STACK_EXISTS="DOES_NOT_EXIST"
+          fi
 
           if [ "$STACK_EXISTS" = "DOES_NOT_EXIST" ]; then
             echo "Creating new stack..."
@@ -211,6 +214,12 @@ jobs:
                 ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
               --region us-west-2
+
+            echo "Waiting for stack creation to complete..."
+            aws cloudformation wait stack-create-complete \
+              --stack-name ${{ steps.stack-config.outputs.stack-name }} \
+              --region us-west-2
+            echo "Stack creation completed successfully"
           else
             echo "Checking if stack update is needed..."
             # Create a changeset to check if updates are needed without actually updating
@@ -256,6 +265,11 @@ jobs:
                   ParameterKey=CognitoDomainPrefix,ParameterValue=${{ steps.stack-config.outputs.cognito-prefix }} \
                   ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
                 --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
+                --region us-west-2
+
+              echo "Waiting for stack update to complete..."
+              aws cloudformation wait stack-update-complete \
+                --stack-name ${{ steps.stack-config.outputs.stack-name }} \
                 --region us-west-2
               echo "Stack update completed successfully"
             fi

@@ -8,6 +8,7 @@
 [![Amazon DynamoDB](https://img.shields.io/badge/Amazon-DynamoDB-4053D6.svg)](https://aws.amazon.com/dynamodb/)
 [![Amazon S3](https://img.shields.io/badge/Amazon-S3-569A31.svg)](https://aws.amazon.com/s3/)
 [![AWS Amplify](https://img.shields.io/badge/AWS-Amplify-FF9900.svg)](https://aws.amazon.com/amplify/)
+[![License: CC BY--NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 
 GlobalInvoiceAI is an autonomous AI-powered global invoice management and validation system built on AWS serverless architecture. It automates vendor invoice processing, tax compliance calculations, currency conversions, and customer invoice generation using Amazon Bedrock AgentCore with the Strands framework.
 
