@@ -143,155 +143,155 @@ jobs:
           aws s3 cp pdf-generator-${ENVIRONMENT}.zip s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/pdf-generator-${ENVIRONMENT}.zip --region us-west-2
           aws s3 cp agentcore-deploy-${ENVIRONMENT}.zip s3://${{ env.DEPLOYMENT_BUCKET }}/lambda/agentcore-deploy-${ENVIRONMENT}.zip --region us-west-2
 
-      - name: Check stack status and prepare for deployment
+      - name: Deploy CloudFormation stack
         run: |
+          # Setup configuration
           STACK_NAME="globalinvoiceai-${{ env.ENVIRONMENT }}"
-
-          # Check if stack exists and its status
-          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null)
-          if [ $? -ne 0 ] || [ -z "$STACK_STATUS" ] || [ "$STACK_STATUS" = "None" ]; then
-            STACK_STATUS="DOES_NOT_EXIST"
-          fi
-
-          if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ]; then
-            echo "Found failed stack in ${STACK_STATUS} state, deleting before redeployment..."
-            aws cloudformation delete-stack --stack-name ${STACK_NAME} --region us-west-2
-            aws cloudformation wait stack-delete-complete --stack-name ${STACK_NAME} --region us-west-2
-            echo "Failed stack deleted successfully"
-          elif [ "$STACK_STATUS" = "UPDATE_ROLLBACK_COMPLETE" ]; then
-            echo "Stack in recoverable state, proceeding with update"
-          elif [ "$STACK_STATUS" = "UPDATE_IN_PROGRESS" ] || [ "$STACK_STATUS" = "CREATE_IN_PROGRESS" ]; then
-            echo "Stack operation in progress, waiting for completion..."
-            aws cloudformation wait stack-create-complete --stack-name ${STACK_NAME} --region us-west-2 2>/dev/null ||
-            aws cloudformation wait stack-update-complete --stack-name ${STACK_NAME} --region us-west-2 2>/dev/null || {
-              STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null)
-              echo "Stack operation failed, final status: ${STACK_STATUS}"
-              exit 1
-            }
-          else
-            echo "Stack status: ${STACK_STATUS}"
-          fi
-
-      - name: Determine stack name and parameters
-        id: stack-config
-        run: |
-          STACK_NAME="globalinvoiceai-${{ env.ENVIRONMENT }}"
-          echo "stack-name=${STACK_NAME}" >> $GITHUB_OUTPUT
+          TEMPLATE_S3_KEY="cloudformation/globalinvoiceai-stack-${{ env.ENVIRONMENT }}.yaml"
 
           # Generate deterministic Cognito domain prefix
           ENVIRONMENT="${{ env.ENVIRONMENT }}"
           REPO_NAME="GlobalInvoiceAI"
-
-          # Create deterministic suffix based on account ID and repo name
           DETERMINISTIC_SUFFIX=$(echo "${{ steps.aws-account.outputs.account-id }}${REPO_NAME}" | md5sum | head -c 8 | tr '[:upper:]' '[:lower:]')
           COGNITO_PREFIX="globalinvoiceai-${DETERMINISTIC_SUFFIX}"
 
           echo "Using Cognito domain: ${COGNITO_PREFIX}-${ENVIRONMENT}"
 
-          echo "cognito-prefix=${COGNITO_PREFIX}" >> $GITHUB_OUTPUT
-
-      - name: Deploy CloudFormation stack
-        run: |
-          # Always upload packaged template to S3 for reliability and to handle size limits
-          TEMPLATE_S3_KEY="cloudformation/globalinvoiceai-stack-${{ env.ENVIRONMENT }}.yaml"
+          # Upload packaged template to S3
           TEMPLATE_SIZE=$(stat -f%z packaged-template.yaml 2>/dev/null || stat -c%s packaged-template.yaml 2>/dev/null || echo "0")
-
           echo "Packaged template size: $TEMPLATE_SIZE bytes"
           echo "Uploading packaged template to S3..."
-
           aws s3 cp packaged-template.yaml s3://${{ env.DEPLOYMENT_BUCKET }}/$TEMPLATE_S3_KEY --region us-west-2
 
-          # Check if stack exists and deploy accordingly
-          STACK_EXISTS=$(aws cloudformation describe-stacks --stack-name ${{ steps.stack-config.outputs.stack-name }} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null)
-          if [ $? -ne 0 ] || [ -z "$STACK_EXISTS" ] || [ "$STACK_EXISTS" = "None" ]; then
-            STACK_EXISTS="DOES_NOT_EXIST"
+          # Check stack status and handle all cases
+          echo "Checking stack status..."
+          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null)
+          if [ $? -ne 0 ] || [ -z "$STACK_STATUS" ] || [ "$STACK_STATUS" = "None" ]; then
+            STACK_STATUS="DOES_NOT_EXIST"
           fi
 
-          if [ "$STACK_EXISTS" = "DOES_NOT_EXIST" ]; then
-            echo "Creating new stack..."
-            aws cloudformation create-stack \
-              --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
-              --stack-name ${{ steps.stack-config.outputs.stack-name }} \
-              --parameters \
-                ParameterKey=Environment,ParameterValue=${{ env.ENVIRONMENT }} \
-                ParameterKey=CognitoDomainPrefix,ParameterValue=${{ steps.stack-config.outputs.cognito-prefix }} \
-                ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
-              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
-              --region us-west-2
+          echo "Stack status: ${STACK_STATUS}"
 
-            echo "Waiting for stack creation to complete..."
-            aws cloudformation wait stack-create-complete \
-              --stack-name ${{ steps.stack-config.outputs.stack-name }} \
-              --region us-west-2
-            echo "Stack creation completed successfully"
-          else
-            echo "Checking if stack update is needed..."
-            # Create a changeset to check if updates are needed without actually updating
-            CHANGESET_NAME="check-update-$(date +%s)"
-
-            echo "Creating changeset: $CHANGESET_NAME"
-            if ! aws cloudformation create-change-set \
-              --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
-              --stack-name ${{ steps.stack-config.outputs.stack-name }} \
-              --change-set-name $CHANGESET_NAME \
-              --parameters \
-                ParameterKey=Environment,ParameterValue=${{ env.ENVIRONMENT }} \
-                ParameterKey=CognitoDomainPrefix,ParameterValue=${{ steps.stack-config.outputs.cognito-prefix }} \
-                ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
-              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
-              --region us-west-2; then
-              echo "❌ Failed to create changeset"
-              exit 1
-            fi
-
-            # Wait a moment for changeset to be created
-            sleep 5
-
-            # Check if changeset has any changes
-            echo "Checking changeset for changes..."
-            if ! CHANGES=$(aws cloudformation describe-change-set \
-              --stack-name ${{ steps.stack-config.outputs.stack-name }} \
-              --change-set-name $CHANGESET_NAME \
-              --region us-west-2 \
-              --query 'length(Changes)' \
-              --output text 2>/dev/null); then
-              echo "❌ Failed to describe changeset, assuming changes needed"
-              CHANGES="1"
-            fi
-
-            # Clean up the changeset
-            echo "Cleaning up changeset..."
-            aws cloudformation delete-change-set \
-              --stack-name ${{ steps.stack-config.outputs.stack-name }} \
-              --change-set-name $CHANGESET_NAME \
-              --region us-west-2 2>/dev/null || echo "Warning: Could not delete changeset"
-
-            if [ "$CHANGES" = "0" ]; then
-              echo "Stack is already up-to-date - no updates needed ✅"
-            else
-              echo "Updates detected, applying changes..."
-              aws cloudformation update-stack \
+          # Handle different stack states
+          case "$STACK_STATUS" in
+            "DOES_NOT_EXIST")
+              echo "Creating new stack..."
+              aws cloudformation create-stack \
                 --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
-                --stack-name ${{ steps.stack-config.outputs.stack-name }} \
+                --stack-name ${STACK_NAME} \
                 --parameters \
                   ParameterKey=Environment,ParameterValue=${{ env.ENVIRONMENT }} \
-                  ParameterKey=CognitoDomainPrefix,ParameterValue=${{ steps.stack-config.outputs.cognito-prefix }} \
+                  ParameterKey=CognitoDomainPrefix,ParameterValue=${COGNITO_PREFIX} \
                   ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
                 --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
                 --region us-west-2
 
-              echo "Waiting for stack update to complete..."
-              aws cloudformation wait stack-update-complete \
-                --stack-name ${{ steps.stack-config.outputs.stack-name }} \
+              echo "Waiting for stack creation to complete..."
+              aws cloudformation wait stack-create-complete --stack-name ${STACK_NAME} --region us-west-2
+              echo "✅ Stack creation completed successfully"
+              ;;
+
+            "ROLLBACK_COMPLETE"|"ROLLBACK_FAILED"|"CREATE_FAILED")
+              echo "Found failed stack in ${STACK_STATUS} state, deleting before redeployment..."
+              aws cloudformation delete-stack --stack-name ${STACK_NAME} --region us-west-2
+              aws cloudformation wait stack-delete-complete --stack-name ${STACK_NAME} --region us-west-2
+              echo "Failed stack deleted, now creating new stack..."
+
+              aws cloudformation create-stack \
+                --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
+                --stack-name ${STACK_NAME} \
+                --parameters \
+                  ParameterKey=Environment,ParameterValue=${{ env.ENVIRONMENT }} \
+                  ParameterKey=CognitoDomainPrefix,ParameterValue=${COGNITO_PREFIX} \
+                  ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
+                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
                 --region us-west-2
-              echo "Stack update completed successfully"
-            fi
-          fi
+
+              aws cloudformation wait stack-create-complete --stack-name ${STACK_NAME} --region us-west-2
+              echo "✅ Stack recreation completed successfully"
+              ;;
+
+            "UPDATE_IN_PROGRESS"|"CREATE_IN_PROGRESS")
+              echo "Stack operation in progress, waiting for completion..."
+              aws cloudformation wait stack-create-complete --stack-name ${STACK_NAME} --region us-west-2 2>/dev/null ||
+              aws cloudformation wait stack-update-complete --stack-name ${STACK_NAME} --region us-west-2 2>/dev/null || {
+                echo "❌ Stack operation failed"
+                exit 1
+              }
+              echo "✅ Stack operation completed"
+              ;;
+
+            "UPDATE_ROLLBACK_COMPLETE"|"CREATE_COMPLETE"|"UPDATE_COMPLETE"|"UPDATE_COMPLETE_CLEANUP_IN_PROGRESS")
+              echo "Checking if stack update is needed..."
+
+              # Create changeset to check for changes
+              CHANGESET_NAME="check-update-$(date +%s)"
+              echo "Creating changeset: $CHANGESET_NAME"
+
+              if ! aws cloudformation create-change-set \
+                --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
+                --stack-name ${STACK_NAME} \
+                --change-set-name $CHANGESET_NAME \
+                --parameters \
+                  ParameterKey=Environment,ParameterValue=${{ env.ENVIRONMENT }} \
+                  ParameterKey=CognitoDomainPrefix,ParameterValue=${COGNITO_PREFIX} \
+                  ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
+                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
+                --region us-west-2; then
+                echo "❌ Failed to create changeset"
+                exit 1
+              fi
+
+              sleep 5
+
+              # Check for changes
+              echo "Checking changeset for changes..."
+              if ! CHANGES=$(aws cloudformation describe-change-set \
+                --stack-name ${STACK_NAME} \
+                --change-set-name $CHANGESET_NAME \
+                --region us-west-2 \
+                --query 'length(Changes)' \
+                --output text 2>/dev/null); then
+                echo "❌ Failed to describe changeset, assuming changes needed"
+                CHANGES="1"
+              fi
+
+              # Clean up changeset
+              aws cloudformation delete-change-set \
+                --stack-name ${STACK_NAME} \
+                --change-set-name $CHANGESET_NAME \
+                --region us-west-2 2>/dev/null || echo "Warning: Could not delete changeset"
+
+              if [ "$CHANGES" = "0" ]; then
+                echo "✅ Stack is already up-to-date - no updates needed"
+              else
+                echo "Updates detected, applying changes..."
+                aws cloudformation update-stack \
+                  --template-url "https://${{ env.DEPLOYMENT_BUCKET }}.s3.us-west-2.amazonaws.com/$TEMPLATE_S3_KEY" \
+                  --stack-name ${STACK_NAME} \
+                  --parameters \
+                    ParameterKey=Environment,ParameterValue=${{ env.ENVIRONMENT }} \
+                    ParameterKey=CognitoDomainPrefix,ParameterValue=${COGNITO_PREFIX} \
+                    ParameterKey=DeploymentArtifactsBucket,ParameterValue=${{ env.DEPLOYMENT_BUCKET }} \
+                  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
+                  --region us-west-2
+
+                echo "Waiting for stack update to complete..."
+                aws cloudformation wait stack-update-complete --stack-name ${STACK_NAME} --region us-west-2
+                echo "✅ Stack update completed successfully"
+              fi
+              ;;
+
+            *)
+              echo "❌ Unexpected stack status: ${STACK_STATUS}"
+              exit 1
+              ;;
+          esac
 
       - name: Get stack outputs
         id: stack-outputs
         run: |
-          STACK_NAME="${{ steps.stack-config.outputs.stack-name }}"
+          STACK_NAME="globalinvoiceai-${{ env.ENVIRONMENT }}"
 
           # Get stack outputs and save them as environment variables
           aws cloudformation describe-stacks \
@@ -300,12 +300,12 @@ jobs:
             --query 'Stacks[0].Outputs' \
             --output json > stack-outputs.json
 
-          # Extract key outputs
-          AMPLIFY_URL=$(jq -r '.[] | select(.OutputKey=="AmplifyAppUrl") | .OutputValue' stack-outputs.json)
-          API_GATEWAY_URL=$(jq -r '.[] | select(.OutputKey=="ApiGatewayUrl") | .OutputValue' stack-outputs.json)
-          INVOICE_BUCKET=$(jq -r '.[] | select(.OutputKey=="InvoiceUploadBucketName") | .OutputValue' stack-outputs.json)
-          USER_POOL_ID=$(jq -r '.[] | select(.OutputKey=="UserPoolId") | .OutputValue' stack-outputs.json)
-          USER_POOL_CLIENT_ID=$(jq -r '.[] | select(.OutputKey=="UserPoolClientId") | .OutputValue' stack-outputs.json)
+          # Extract key outputs with error handling
+          AMPLIFY_URL=$(jq -r '.[] | select(.OutputKey=="AmplifyAppUrl") | .OutputValue' stack-outputs.json 2>/dev/null || echo "")
+          API_GATEWAY_URL=$(jq -r '.[] | select(.OutputKey=="ApiGatewayUrl") | .OutputValue' stack-outputs.json 2>/dev/null || echo "")
+          INVOICE_BUCKET=$(jq -r '.[] | select(.OutputKey=="InvoiceUploadBucketName") | .OutputValue' stack-outputs.json 2>/dev/null || echo "")
+          USER_POOL_ID=$(jq -r '.[] | select(.OutputKey=="UserPoolId") | .OutputValue' stack-outputs.json 2>/dev/null || echo "")
+          USER_POOL_CLIENT_ID=$(jq -r '.[] | select(.OutputKey=="UserPoolClientId") | .OutputValue' stack-outputs.json 2>/dev/null || echo "")
 
           echo "amplify-url=${AMPLIFY_URL}" >> $GITHUB_OUTPUT
           echo "api-gateway-url=${API_GATEWAY_URL}" >> $GITHUB_OUTPUT
@@ -326,7 +326,7 @@ jobs:
           **Strategy:** Bucket-based deployment
 
           ## 📋 Stack Information
-          - **Stack Name:** ${{ steps.stack-config.outputs.stack-name }}
+          - **Stack Name:** globalinvoiceai-${{ env.ENVIRONMENT }}
           - **Region:** us-west-2
           - **Deployment Strategy:** Bucket-based (artifacts stored in S3 buckets per environment)
 
@@ -395,7 +395,7 @@ jobs:
               **Environment:** ${{ env.ENVIRONMENT }}
 
               ### 📋 Stack Information
-              - Stack Name: ${{ steps.stack-config.outputs.stack-name }}
+              - Stack Name: globalinvoiceai-${{ env.ENVIRONMENT }}
               - Region: us-west-2
 
               ### 🔗 Access URLs
