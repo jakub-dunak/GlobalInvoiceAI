@@ -165,8 +165,13 @@ jobs:
 
           # Check stack status and handle all cases
           echo "Checking stack status..."
-          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null)
-          if [ $? -ne 0 ] || [ -z "$STACK_STATUS" ] || [ "$STACK_STATUS" = "None" ]; then
+          if STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --region us-west-2 --query 'Stacks[0].StackStatus' --output text 2>/dev/null); then
+            # Command succeeded, check if we got a valid status
+            if [ -z "$STACK_STATUS" ] || [ "$STACK_STATUS" = "None" ]; then
+              STACK_STATUS="DOES_NOT_EXIST"
+            fi
+          else
+            # Command failed, stack doesn't exist
             STACK_STATUS="DOES_NOT_EXIST"
           fi
 
